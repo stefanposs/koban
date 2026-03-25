@@ -14,15 +14,16 @@ Tasks flow through configurable columns via drag-and-drop or keyboard shortcuts,
 
 ## Features
 
-- **Semantic Spaces** — Organize work into projects, areas, or initiatives — each with its own tasks and meetings
+- **Semantic Spaces** — Organize work into projects, areas, or initiatives — each with its own tasks, meetings, and notes
 - **Visual Kanban Board** — Drag-and-drop task management inside VS Code
 - **Keyboard-First** — `J/K` navigate, `Space` opens, `1-4` moves columns, `C` creates
+- **Daily Notes** — One-keystroke daily journal (`.daily/YYYY-MM-DD.md`)
+- **Quick Capture** — Fast task creation without leaving your flow
 - **Code-to-Task** — Select code → right-click → "Create Koban Task from Selection" with clickable source link
 - **Markdown-First** — All data in `.md` files — version control friendly, no lock-in
-- **Zero-Config Onboarding** — Initialize workspace and get your first space + sample task in < 60 seconds
 - **Space Templates** — Blank, Client Project, Sprint, Documentation, Personal
-- **WIP Limits** — Configurable Work-in-Progress limits per column
 - **Meeting Management** — Track meetings, agendas, and action items
+- **Status Bar** — See in-progress/total tasks at a glance
 - **VS Code Native** — Respects your theme, uses VS Code CSS variables
 
 ## Quick Start
@@ -42,10 +43,10 @@ code --install-extension koban-*.vsix
 
 ### Get Started
 
-1. Click the **Koban** icon in the Explorer sidebar
-2. Click **"🚀 Initialize Koban Workspace"**
-3. A "Getting Started" space with a sample task is created automatically
-4. Press `CMD+Shift+K` to open the Kanban board
+1. Click the **Koban** icon in the Activity Bar
+2. Click **"+ Create New Space"**
+3. Choose a template and name your space
+4. Press `Cmd+Shift+K` to open the Kanban board
 
 ## Architecture
 
@@ -88,16 +89,18 @@ code --install-extension koban-*.vsix
 
 ```
 workspace/
-├── .mkw/                     # Extension metadata
-│   └── config.yml
+├── .daily/                   # Daily notes (global)
+│   ├── 2026-03-24.md
+│   └── 2026-03-25.md
 │
 ├── website-relaunch/         # ← Space
 │   ├── _meta.md              # Space metadata (type: space)
-│   ├── .tasks/               # System folder (hidden)
+│   ├── .tasks/               # Task files
 │   │   ├── task-1711234567.md
 │   │   └── task-1711234890.md
-│   ├── .meetings/            # System folder (hidden)
+│   ├── .meetings/            # Meeting files
 │   │   └── 2024-03-22-kickoff.md
+│   ├── architecture.md       # ← Note (loose .md file)
 │   └── docs/                 # Your content
 │       └── api-spec.md
 │
@@ -107,13 +110,9 @@ workspace/
     └── .meetings/
 ```
 
-### Space Detection (3 Methods)
+### Space Detection
 
-| Priority | Method | Detection |
-|----------|--------|-----------|
-| 1 | **Explicit** | `.mkw/space.yml` configuration file |
-| 2 | **Frontmatter** | `_meta.md` with `type: space` |
-| 3 | **Convention** | Contains `.tasks/` and `.meetings/` |
+A folder becomes a **Space** when it contains a `_meta.md` file with `type: space` frontmatter. That's it.
 
 ## Task Format
 
@@ -148,14 +147,15 @@ Create REST endpoint for user management.
 
 | Command | Keybinding | Description |
 |---------|------------|-------------|
-| `Koban: Open Kanban Board` | `CMD+Shift+K` | Open Kanban board for a space |
-| `Koban: New Task` | `CMD+Shift+T` | Create a new task |
+| `Koban: Open Kanban Board` | `Cmd+Shift+K` | Open Kanban board |
+| `Koban: New Task` | `Cmd+K Cmd+T` | Create a new task |
+| `Koban: New Meeting` | `Cmd+K Cmd+M` | Create a meeting |
 | `Koban: New Space` | — | Create a new space from template |
-| `Koban: New Meeting` | — | Create a meeting with date |
-| `Koban: Initialize Workspace` | — | Set up workspace for Koban |
+| `Koban: New Note` | — | Create a note in a space |
+| `Koban: Daily Note` | `Cmd+Shift+D` | Open/create today's daily note |
+| `Koban: Quick Capture` | `Cmd+Shift+N` | Fast task creation |
 | `Koban: Reindex Spaces` | — | Re-scan workspace for spaces |
 | `Koban: Create Task from Selection` | Right-click | Create task from selected code |
-| `Koban: Pause/Archive/Activate Space` | Right-click | Change space status |
 
 ## Configuration
 
@@ -166,7 +166,7 @@ Create REST endpoint for user management.
   "koban.autoSave": true,
   "koban.kanbanColumns": [
     { "id": "todo", "name": "To Do", "status": "todo", "color": "#6b7280" },
-    { "id": "in-progress", "name": "In Progress", "status": "in-progress", "color": "#3b82f6", "wipLimit": 3 },
+    { "id": "in-progress", "name": "In Progress", "status": "in-progress", "color": "#3b82f6" },
     { "id": "review", "name": "Review", "status": "review", "color": "#f59e0b" },
     { "id": "done", "name": "Done", "status": "done", "color": "#10b981" }
   ]
@@ -213,8 +213,8 @@ just reset              # Clean + install
 
 - **Extension Host:** TypeScript, esbuild
 - **Webview:** Vanilla JS + CSS (VS Code theme variables)
-- **Parsing:** Custom frontmatter parser + `yaml` package
-- **Testing:** Vitest (11 tests)
+- **Parsing:** Custom frontmatter parser (zero dependencies)
+- **Testing:** Vitest (32 tests)
 - **Build:** esbuild (bundler) + TypeScript (type-checking)
 - **CI/CD:** GitHub Actions
 - **License:** MIT

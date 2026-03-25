@@ -10,7 +10,7 @@ import { SpaceService } from './services/spaceService';
 import { TaskService } from './services/taskService';
 import { FileService } from './services/fileService';
 import { ConfigService } from './services/configService';
-import { TaskStatus } from './types';
+import { TaskStatus, Space } from './types';
 import * as path from 'path';
 
 let spaceService: SpaceService;
@@ -118,6 +118,11 @@ export async function activate(context: vscode.ExtensionContext) {
         // Quick Capture
         vscode.commands.registerCommand('koban.quickCapture', async () => {
             await quickCapture();
+        }),
+
+        // New Note
+        vscode.commands.registerCommand('koban.newNote', async (node) => {
+            await createNewNote(node);
         }),
 
         // Tree view
@@ -616,6 +621,50 @@ function updateStatusBar(): void {
     statusBarItem.text = `$(checklist) ${inProgress}/${totalTasks}`;
     statusBarItem.tooltip = `Koban: ${inProgress} in progress, ${totalTasks} total tasks`;
     statusBarItem.show();
+}
+
+async function createNewNote(node?: any): Promise<void> {
+    let space: Space | undefined;
+
+    if (node && node.space) {
+        space = node.space;
+    } else {
+        const spaces = spaceService.getSpaces();
+        if (spaces.length === 0) {
+            vscode.window.showErrorMessage('No spaces found. Create a space first.');
+            return;
+        }
+        if (spaces.length === 1) {
+            space = spaces[0];
+        } else {
+            const selected = await vscode.window.showQuickPick(
+                spaces.map(s => ({ label: s.name, description: s.id, space: s })),
+                { placeHolder: 'Select a space for the note' }
+            );
+            if (!selected) { return; }
+            space = selected.space;
+        }
+    }
+
+    const title = await vscode.window.showInputBox({
+        prompt: 'Enter note title',
+        placeHolder: 'e.g., Architecture decisions'
+    });
+    if (!title) { return; }
+
+    const fileName = title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '.md';
+    const filePath = path.join(space.rootPath, fileName);
+
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const content = `---\ntitle: ${title}\ncreated: ${today}\n---\n\n# ${title}\n\n`;
+        await fileService.writeFile(filePath, content);
+        const doc = await vscode.workspace.openTextDocument(filePath);
+        await vscode.window.showTextDocument(doc);
+        await refreshSpaces();
+    } catch (error) {
+        vscode.window.showErrorMessage(`Failed to create note: ${error}`);
+    }
 }
 
 function setupFileWatcher(context: vscode.ExtensionContext): void {

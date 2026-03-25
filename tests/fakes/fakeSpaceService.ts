@@ -24,7 +24,6 @@ export class FakeSpaceService implements ISpaceService {
             status: overrides?.status ?? 'active',
             createdAt: overrides?.createdAt ?? new Date(),
             updatedAt: overrides?.updatedAt ?? new Date(),
-            detectionMethod: overrides?.detectionMethod ?? 'convention',
             stats: overrides?.stats ?? defaultStats(),
             ...overrides,
         };

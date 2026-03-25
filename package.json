@@ -51,6 +51,12 @@
         "icon": "$(calendar)"
       },
       {
+        "command": "koban.newNote",
+        "title": "New Note",
+        "category": "Koban",
+        "icon": "$(note)"
+      },
+      {
         "command": "koban.openKanban",
         "title": "Open Kanban Board",
         "category": "Koban",
@@ -256,6 +262,11 @@
         "command": "koban.quickCapture",
         "key": "ctrl+shift+n",
         "mac": "cmd+shift+n"
+      },
+      {
+        "command": "koban.newMeeting",
+        "key": "ctrl+k ctrl+m",
+        "mac": "cmd+k cmd+m"
       }
     ],
     "configuration": {
