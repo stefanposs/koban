@@ -97,7 +97,6 @@ export interface SpaceMeta {
 
 export interface TaskMeta {
     id: string;
-    space: string;
     status: TaskStatus;
     priority?: TaskPriority;
     assignee?: string;
@@ -109,7 +108,6 @@ export interface TaskMeta {
 export interface MeetingMeta {
     type: 'meeting';
     id: string;
-    space: string;
     meeting_type?: MeetingType;
     date: string;
     start_time?: string;

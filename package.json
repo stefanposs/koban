@@ -159,14 +159,29 @@
     "menus": {
       "view/title": [
         {
-          "command": "koban.newSpace",
+          "command": "koban.quickCapture",
           "when": "view == kobanSpaces",
           "group": "navigation@1"
         },
         {
-          "command": "koban.refreshSpaces",
+          "command": "koban.dailyNote",
           "when": "view == kobanSpaces",
           "group": "navigation@2"
+        },
+        {
+          "command": "koban.openKanban",
+          "when": "view == kobanSpaces",
+          "group": "navigation@3"
+        },
+        {
+          "command": "koban.newSpace",
+          "when": "view == kobanSpaces",
+          "group": "navigation@4"
+        },
+        {
+          "command": "koban.refreshSpaces",
+          "when": "view == kobanSpaces",
+          "group": "navigation@5"
         }
       ],
       "view/item/context": [
@@ -245,8 +260,8 @@
     "keybindings": [
       {
         "command": "koban.openKanban",
-        "key": "ctrl+shift+k",
-        "mac": "cmd+shift+k"
+        "key": "ctrl+k ctrl+b",
+        "mac": "cmd+k cmd+b"
       },
       {
         "command": "koban.newTask",
@@ -255,13 +270,13 @@
       },
       {
         "command": "koban.dailyNote",
-        "key": "ctrl+shift+d",
-        "mac": "cmd+shift+d"
+        "key": "ctrl+k ctrl+d",
+        "mac": "cmd+k cmd+d"
       },
       {
         "command": "koban.quickCapture",
-        "key": "ctrl+shift+n",
-        "mac": "cmd+shift+n"
+        "key": "ctrl+k ctrl+n",
+        "mac": "cmd+k cmd+n"
       },
       {
         "command": "koban.newMeeting",

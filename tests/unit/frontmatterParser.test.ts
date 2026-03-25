@@ -52,6 +52,36 @@ tags: [feature, ui, urgent]
 title: No closing`
     expect(parseFrontmatter(content)).toEqual({})
   })
+
+  it('handles values containing colons (URLs)', () => {
+    const content = `---
+url: https://example.com/path
+title: My Task
+---`
+    const result = parseFrontmatter(content)
+    expect(result.url).toBe('https://example.com/path')
+    expect(result.title).toBe('My Task')
+  })
+
+  it('preserves quoted string values without extra quotes', () => {
+    const content = `---
+id: "001"
+name: "test value"
+---`
+    const result = parseFrontmatter(content)
+    expect(result.id).toBe('001')
+    expect(result.name).toBe('test value')
+  })
+
+  it('handles empty values', () => {
+    const content = `---
+assignee:
+title: Test
+---`
+    const result = parseFrontmatter(content)
+    expect(result.assignee).toBe('')
+    expect(result.title).toBe('Test')
+  })
 })
 
 describe('stringifyFrontmatter', () => {
@@ -67,6 +97,21 @@ describe('stringifyFrontmatter', () => {
     const data = { tags: ['a', 'b'] }
     const result = stringifyFrontmatter(data)
     expect(result).toContain('tags: ["a", "b"]')
+  })
+
+  it('escapes quotes in array elements', () => {
+    const data = { tags: ['has "quotes"', 'normal'] }
+    const result = stringifyFrontmatter(data)
+    expect(result).toContain('has \\"quotes\\"')
+  })
+
+  it('roundtrips arrays through stringify → parse without quote leakage', () => {
+    const original = { tags: ['feature', 'ui', 'urgent'] }
+    const stringified = stringifyFrontmatter(original)
+    const content = `---\n${stringified}---\nBody`
+    const parsed = parseFrontmatter(content)
+    expect(parsed.tags).toEqual(['feature', 'ui', 'urgent'])
+    expect(parsed.tags[0]).not.toContain('"')
   })
 
   it('skips null/undefined values', () => {

@@ -7,6 +7,7 @@ assets/**
 docs/**
 scripts/**
 .mkw/**
+test-workspace/**
 .gitignore
 .eslintrc.json
 **/*.map
@@ -24,3 +25,4 @@ getting-started/**
 !package.json
 !LICENSE
 !README.md
+!CHANGELOG.md

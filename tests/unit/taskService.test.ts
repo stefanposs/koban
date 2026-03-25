@@ -35,7 +35,6 @@ describe('TaskService', () => {
 
             const fm = parseFrontmatter(fileContent!)
             expect(fm.status).toBe('todo')
-            expect(fm.space).toBe('project-a')
         })
 
         it('applies custom options', async () => {
@@ -78,7 +77,6 @@ describe('TaskService', () => {
             // Seed a task file
             fileService.addFile('/workspace/project-a/.tasks/task-001.md', `---
 id: task-001
-space: project-a
 status: todo
 priority: high
 created: 2025-01-01
@@ -101,7 +99,6 @@ A seeded task.
             fileService.addFile('/workspace/project-a/.tasks/.DS_Store', '')
             fileService.addFile('/workspace/project-a/.tasks/task-001.md', `---
 id: task-001
-space: project-a
 status: todo
 ---
 
@@ -114,14 +111,12 @@ status: todo
         it('excludes archived tasks by default', async () => {
             fileService.addFile('/workspace/project-a/.tasks/task-active.md', `---
 id: task-active
-space: project-a
 status: todo
 ---
 # Active`)
 
             fileService.addFile('/workspace/project-a/.tasks/.archive/task-old.md', `---
 id: task-old
-space: project-a
 status: archived
 ---
 # Old`)
@@ -134,14 +129,12 @@ status: archived
         it('includes archived tasks when requested', async () => {
             fileService.addFile('/workspace/project-a/.tasks/task-active.md', `---
 id: task-active
-space: project-a
 status: todo
 ---
 # Active`)
 
             fileService.addFile('/workspace/project-a/.tasks/.archive/task-old.md', `---
 id: task-old
-space: project-a
 status: archived
 ---
 # Old`)
@@ -150,17 +143,7 @@ status: archived
             expect(tasks).toHaveLength(2)
         })
 
-        it('ignores tasks belonging to other spaces', async () => {
-            fileService.addFile('/workspace/project-a/.tasks/task-other.md', `---
-id: task-other
-space: project-b
-status: todo
----
-# Wrong Space`)
 
-            const tasks = await taskService.getTasksForSpace('project-a')
-            expect(tasks).toHaveLength(0)
-        })
     })
 
     describe('updateTaskStatus', () => {
@@ -227,7 +210,6 @@ status: todo
 
             const fm = parseFrontmatter(fileService.getFile(meeting.filePath)!)
             expect(fm.type).toBe('meeting')
-            expect(fm.space).toBe('project-a')
             expect(fm.date).toBe('2025-02-01')
         })
 
@@ -254,7 +236,6 @@ status: todo
             fileService.addFile('/workspace/project-a/.meetings/2025-01-15-standup.md', `---
 type: meeting
 id: 2025-01-15-standup
-space: project-a
 date: 2025-01-15
 ---
 
@@ -264,6 +245,65 @@ date: 2025-01-15
             expect(meetings).toHaveLength(1)
             expect(meetings[0].title).toBe('Standup')
             expect(meetings[0].id).toBe('2025-01-15-standup')
+        })
+    })
+
+    describe('createMeeting date validation', () => {
+        it('rejects invalid date format', async () => {
+            await expect(taskService.createMeeting('project-a', 'Test', '../../evil'))
+                .rejects.toThrow('Invalid date format')
+        })
+
+        it('rejects non-date strings', async () => {
+            await expect(taskService.createMeeting('project-a', 'Test', 'not-a-date'))
+                .rejects.toThrow('Invalid date format')
+        })
+
+        it('accepts valid YYYY-MM-DD dates', async () => {
+            const meeting = await taskService.createMeeting('project-a', 'Valid', '2025-06-15')
+            expect(meeting.title).toBe('Valid')
+        })
+    })
+
+    describe('checklist extraction', () => {
+        it('parses mixed completed and incomplete items', async () => {
+            fileService.addFile('/workspace/project-a/.tasks/task-cl.md', `---
+id: task-cl
+status: in-progress
+---
+
+# Checklist Task
+
+## Checklist
+- [x] Setup database
+- [ ] Write migrations
+- [X] Configure CI
+- [ ] Deploy to staging
+`)
+            const tasks = await taskService.getTasksForSpace('project-a')
+            expect(tasks).toHaveLength(1)
+            expect(tasks[0].checklist).toHaveLength(4)
+            expect(tasks[0].checklist[0]).toEqual({ text: 'Setup database', completed: true })
+            expect(tasks[0].checklist[1]).toEqual({ text: 'Write migrations', completed: false })
+            expect(tasks[0].checklist[2]).toEqual({ text: 'Configure CI', completed: true })
+            expect(tasks[0].checklist[3]).toEqual({ text: 'Deploy to staging', completed: false })
+        })
+    })
+
+    describe('corrupted frontmatter handling', () => {
+        it('skips files with missing id', async () => {
+            fileService.addFile('/workspace/project-a/.tasks/bad.md', `---
+status: todo
+---
+# No ID`)
+            const tasks = await taskService.getTasksForSpace('project-a')
+            expect(tasks).toHaveLength(0)
+        })
+
+        it('handles files without frontmatter', async () => {
+            fileService.addFile('/workspace/project-a/.tasks/plain.md', `# Just Markdown`)
+            const tasks = await taskService.getTasksForSpace('project-a')
+            expect(tasks).toHaveLength(0)
         })
     })
 })

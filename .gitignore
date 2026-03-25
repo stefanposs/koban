@@ -30,3 +30,5 @@ Thumbs.db
 *.local
 .mkw/
 .tasks/
+.daily/
+test-workspace/

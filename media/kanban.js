@@ -195,6 +195,14 @@
             });
         }
 
+        // Daily Note button
+        const dailyNoteBtn = document.getElementById('btn-daily-note');
+        if (dailyNoteBtn) {
+            dailyNoteBtn.addEventListener('click', () => {
+                vscode.postMessage({ type: 'dailyNote' });
+            });
+        }
+
         // Modal close buttons (all modals)
         document.querySelectorAll('.modal .close').forEach(closeBtn => {
             closeBtn.addEventListener('click', () => {

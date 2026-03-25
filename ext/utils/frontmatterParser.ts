@@ -43,6 +43,9 @@ export function parseFrontmatter(content: string): ParsedFrontmatter {
             const key = line.substring(0, colonIndex).trim();
             let value: any = line.substring(colonIndex + 1).trim();
             
+            // Skip lines that look like continuation/nested YAML
+            if (key.startsWith(' ') || key.startsWith('-')) { continue; }
+            
             // Try to parse as different types
             if (value === 'true') {
                 value = true;
@@ -51,12 +54,12 @@ export function parseFrontmatter(content: string): ParsedFrontmatter {
             } else if (!isNaN(Number(value)) && value !== '') {
                 value = Number(value);
             } else if (value.startsWith('[') && value.endsWith(']')) {
-                // Parse array
+                // Parse array — strip quotes from individual items
                 try {
                     value = value
                         .slice(1, -1)
                         .split(',')
-                        .map((v: string) => v.trim())
+                        .map((v: string) => v.trim().replace(/^["']|["']$/g, ''))
                         .filter((v: string) => v.length > 0);
                 } catch {
                     // Keep as string if parsing fails
@@ -85,7 +88,7 @@ export function stringifyFrontmatter(data: ParsedFrontmatter): string {
         }
         
         if (Array.isArray(value)) {
-            lines.push(`${key}: [${value.map(v => `"${v}"`).join(', ')}]`);
+            lines.push(`${key}: [${value.map(v => `"${String(v).replace(/"/g, '\\"')}"`).join(', ')}]`);
         } else if (typeof value === 'string') {
             // Quote strings that could be misinterpreted as YAML
             const needsQuotes = value.includes(':') || value.includes('#') || value.includes('"') ||

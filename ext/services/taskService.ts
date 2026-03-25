@@ -3,8 +3,10 @@
  */
 
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { Task, Meeting, TaskStatus, TaskPriority, MeetingType, TaskMeta, MeetingMeta, IFileService, IConfigService, ISpaceService, ITaskService } from '../types';
 import { parseFrontmatter, stringifyFrontmatter, updateFrontmatter } from '../utils/frontmatterParser';
+import { TASKS_DIR, MEETINGS_DIR, ARCHIVE_DIR } from '../constants';
 
 export class TaskService implements ITaskService {
     private tasks: Map<string, Task> = new Map();
@@ -42,7 +44,7 @@ export class TaskService implements ITaskService {
         }
 
         // Generate task ID
-        const taskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const taskId = `task-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
         const fileName = `${taskId}.md`;
         const filePath = path.join(tasksDir, fileName);
 
@@ -51,7 +53,6 @@ export class TaskService implements ITaskService {
 
         const frontmatter: TaskMeta = {
             id: taskId,
-            space: spaceId,
             status: options?.status || 'todo',
             priority: options?.priority || 'medium',
             assignee: options?.assignee,
@@ -109,7 +110,12 @@ Add task description here...
             throw new Error(`Space ${spaceId} not found`);
         }
 
-        const meetingsDir = path.join(spaceRoot, '.meetings');
+        // Validate date format to prevent path traversal
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            throw new Error(`Invalid date format: "${date}". Expected YYYY-MM-DD.`);
+        }
+
+        const meetingsDir = path.join(spaceRoot, MEETINGS_DIR);
         
         try {
             await this.fileService.createDirectory(meetingsDir);
@@ -124,7 +130,6 @@ Add task description here...
         const frontmatter: MeetingMeta = {
             type: 'meeting',
             id: meetingId,
-            space: spaceId,
             date: date,
             meeting_type: options?.meetingType,
             duration: options?.duration ? `${options.duration}m` : undefined,
@@ -174,14 +179,7 @@ ${stringifyFrontmatter(frontmatter)}---
             return [];
         }
 
-        // Clear stale entries for this space
-        for (const [id, task] of this.tasks) {
-            if (task.spaceId === spaceId) {
-                this.tasks.delete(id);
-            }
-        }
-
-        const tasksDir = path.join(spaceRoot, '.tasks');
+        const tasksDir = path.join(spaceRoot, TASKS_DIR);
         const tasks: Task[] = [];
 
         // Scan main .tasks/ directory
@@ -189,8 +187,18 @@ ${stringifyFrontmatter(frontmatter)}---
 
         // Scan .tasks/.archive/ if requested
         if (includeArchived) {
-            const archiveDir = path.join(tasksDir, '.archive');
+            const archiveDir = path.join(tasksDir, ARCHIVE_DIR);
             await this._scanTasksDir(archiveDir, spaceId, tasks);
+        }
+
+        // Atomic cache swap: only clear + replace after scan completes
+        for (const [id, task] of this.tasks) {
+            if (task.spaceId === spaceId) {
+                this.tasks.delete(id);
+            }
+        }
+        for (const t of tasks) {
+            this.tasks.set(t.id, t);
         }
 
         return tasks;
@@ -207,10 +215,10 @@ ${stringifyFrontmatter(frontmatter)}---
                         const content = await this.fileService.readFile(filePath);
                         const frontmatter = parseFrontmatter(content);
 
-                        if (frontmatter.id && frontmatter.space === spaceId) {
+                        if (frontmatter.id) {
                             const task: Task = {
                                 id: frontmatter.id,
-                                spaceId: frontmatter.space,
+                                spaceId: spaceId,
                                 title: this.extractTitle(content) || file.replace('.md', ''),
                                 status: frontmatter.status || 'todo',
                                 priority: frontmatter.priority || 'medium',
@@ -242,7 +250,7 @@ ${stringifyFrontmatter(frontmatter)}---
             return [];
         }
 
-        const meetingsDir = path.join(spaceRoot, '.meetings');
+        const meetingsDir = path.join(spaceRoot, MEETINGS_DIR);
         const meetings: Meeting[] = [];
 
         try {
@@ -255,10 +263,10 @@ ${stringifyFrontmatter(frontmatter)}---
                         const content = await this.fileService.readFile(filePath);
                         const frontmatter = parseFrontmatter(content);
 
-                        if (frontmatter.id && frontmatter.space === spaceId) {
+                        if (frontmatter.id) {
                             const meeting: Meeting = {
                                 id: frontmatter.id,
-                                spaceId: frontmatter.space,
+                                spaceId: spaceId,
                                 title: this.extractTitle(content) || file.replace('.md', ''),
                                 date: new Date(frontmatter.date),
                                 duration: frontmatter.duration ? parseInt(frontmatter.duration) : undefined,
@@ -295,7 +303,7 @@ ${stringifyFrontmatter(frontmatter)}---
             task.status = newStatus;
             task.updatedAt = new Date();
         } catch (error) {
-            throw new Error(`Failed to update task status: ${error}`);
+            throw new Error(`Failed to update task status`, { cause: error });
         }
     }
 
@@ -310,7 +318,7 @@ ${stringifyFrontmatter(frontmatter)}---
 
         // Move file to .tasks/.archive/ subfolder
         const tasksDir = path.dirname(task.filePath);
-        const archiveDir = path.join(tasksDir, '.archive');
+        const archiveDir = path.join(tasksDir, ARCHIVE_DIR);
         try {
             await this.fileService.createDirectory(archiveDir);
         } catch {
@@ -350,7 +358,7 @@ ${stringifyFrontmatter(frontmatter)}---
 
     private extractChecklist(content: string): Array<{ text: string; completed: boolean }> {
         const checklist: Array<{ text: string; completed: boolean }> = [];
-        const regex = /^- \[(.)\ ] (.+)$/gm;
+        const regex = /^- \[(.)\] (.+)$/gm;
         let match;
         
         while ((match = regex.exec(content)) !== null) {

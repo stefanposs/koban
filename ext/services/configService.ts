@@ -67,7 +67,6 @@ export class ConfigService implements IConfigService {
     getDefaultTaskTemplate(): string {
         return this.getConfig().get<string>('defaultTaskTemplate', `---
 id: {{id}}
-space: {{space}}
 status: todo
 priority: medium
 created: {{date}}
@@ -88,7 +87,6 @@ created: {{date}}
         return this.getConfig().get<string>('defaultMeetingTemplate', `---
 type: meeting
 id: {{id}}
-space: {{space}}
 date: {{date}}
 ---
 

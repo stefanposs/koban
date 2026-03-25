@@ -3,8 +3,8 @@
  */
 
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { Space, Task, Meeting, TaskStatus, ISpaceService, ITaskService, IFileService } from '../types';
+import { META_FILE } from '../constants';
 
 export class SpaceExplorerProvider implements vscode.TreeDataProvider<SpaceTreeItem> {
     private _onDidChangeTreeData: vscode.EventEmitter<SpaceTreeItem | undefined | void> = new vscode.EventEmitter<SpaceTreeItem | undefined | void>();
@@ -55,7 +55,7 @@ export class SpaceExplorerProvider implements vscode.TreeDataProvider<SpaceTreeI
             // Notes category — loose .md files in space root (excluding _meta.md)
             try {
                 const files = await this.fileService.listFiles(space.rootPath);
-                const notes = files.filter(f => f.endsWith('.md') && f !== '_meta.md');
+                const notes = files.filter(f => f.endsWith('.md') && f !== META_FILE);
                 if (notes.length > 0) {
                     items.push(new CategoryItem('Notes', 'notes', space, notes.length));
                 }
@@ -83,7 +83,7 @@ export class SpaceExplorerProvider implements vscode.TreeDataProvider<SpaceTreeI
             if (element.categoryType === 'notes') {
                 try {
                     const files = await this.fileService.listFiles(space.rootPath);
-                    const notes = files.filter(f => f.endsWith('.md') && f !== '_meta.md');
+                    const notes = files.filter(f => f.endsWith('.md') && f !== META_FILE);
                     return notes.map(f => new NoteItem(f, space));
                 } catch {
                     return [];
@@ -99,11 +99,13 @@ export class SpaceExplorerProvider implements vscode.TreeDataProvider<SpaceTreeI
             return new SpaceItem(element.space);
         }
         if (element instanceof TaskItem) {
-            // Find parent space
-            return new SpaceItem(element.space);
+            return new CategoryItem('Tasks', 'tasks', element.space, 0);
         }
         if (element instanceof MeetingItem) {
-            return new SpaceItem(element.space);
+            return new CategoryItem('Meetings', 'meetings', element.space, 0);
+        }
+        if (element instanceof NoteItem) {
+            return new CategoryItem('Notes', 'notes', element.space, 0);
         }
         return null;
     }

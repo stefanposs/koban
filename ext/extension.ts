@@ -11,6 +11,7 @@ import { TaskService } from './services/taskService';
 import { FileService } from './services/fileService';
 import { ConfigService } from './services/configService';
 import { TaskStatus, Space } from './types';
+import { DAILY_DIR, META_FILE } from './constants';
 import * as path from 'path';
 
 let spaceService: SpaceService;
@@ -141,7 +142,10 @@ export async function activate(context: vscode.ExtensionContext) {
     await discoverSpaces();
 }
 
+let debounceTimer: NodeJS.Timeout | undefined;
+
 export function deactivate() {
+    if (debounceTimer) { clearTimeout(debounceTimer); }
     console.log('Koban extension is now deactivated');
 }
 
@@ -264,7 +268,7 @@ async function createNewSpace(): Promise<void> {
         const doc = await vscode.workspace.openTextDocument(metaPath);
         await vscode.window.showTextDocument(doc);
     } catch (error) {
-        vscode.window.showErrorMessage(`Failed to create space: ${error}`);
+        vscode.window.showErrorMessage(`Failed to create space: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 
@@ -292,7 +296,7 @@ async function createNewTask(node?: any): Promise<void> {
         const doc = await vscode.workspace.openTextDocument(task.filePath);
         await vscode.window.showTextDocument(doc);
     } catch (error) {
-        vscode.window.showErrorMessage(`Failed to create task: ${error}`);
+        vscode.window.showErrorMessage(`Failed to create task: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 
@@ -312,7 +316,8 @@ async function createNewMeeting(node?: any): Promise<void> {
     const meetingDate = await vscode.window.showInputBox({
         prompt: 'Enter meeting date (YYYY-MM-DD)',
         placeHolder: new Date().toISOString().split('T')[0],
-        value: new Date().toISOString().split('T')[0]
+        value: new Date().toISOString().split('T')[0],
+        validateInput: (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) ? null : 'Use YYYY-MM-DD format'
     });
 
     if (!meetingDate) {
@@ -328,7 +333,7 @@ async function createNewMeeting(node?: any): Promise<void> {
         const doc = await vscode.workspace.openTextDocument(meeting.filePath);
         await vscode.window.showTextDocument(doc);
     } catch (error) {
-        vscode.window.showErrorMessage(`Failed to create meeting: ${error}`);
+        vscode.window.showErrorMessage(`Failed to create meeting: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 
@@ -414,7 +419,7 @@ async function deleteTask(node: any): Promise<void> {
         await refreshSpaces();
         vscode.window.showInformationMessage('Task deleted successfully!');
     } catch (error) {
-        vscode.window.showErrorMessage(`Failed to delete task: ${error}`);
+        vscode.window.showErrorMessage(`Failed to delete task: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 
@@ -423,11 +428,17 @@ async function moveTask(node: any, newStatus: string): Promise<void> {
         return;
     }
 
+    const validStatuses: TaskStatus[] = ['todo', 'in-progress', 'review', 'done', 'blocked', 'archived'];
+    if (!validStatuses.includes(newStatus as TaskStatus)) {
+        vscode.window.showErrorMessage(`Invalid task status: ${newStatus}`);
+        return;
+    }
+
     try {
         await taskService.updateTaskStatus(node.task.id, newStatus as TaskStatus);
         await refreshSpaces();
     } catch (error) {
-        vscode.window.showErrorMessage(`Failed to move task: ${error}`);
+        vscode.window.showErrorMessage(`Failed to move task: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 
@@ -494,7 +505,7 @@ async function createTaskFromSelection(): Promise<void> {
         vscode.window.showInformationMessage(`Task "${taskTitle}" created from selection!`);
         await refreshSpaces();
     } catch (error) {
-        vscode.window.showErrorMessage(`Failed to create task: ${error}`);
+        vscode.window.showErrorMessage(`Failed to create task: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 
@@ -508,7 +519,7 @@ async function changeSpaceStatus(node: any, status: 'active' | 'paused' | 'archi
         await refreshSpaces();
         vscode.window.showInformationMessage(`Space "${node.space.name}" is now ${status}.`);
     } catch (error) {
-        vscode.window.showErrorMessage(`Failed to update space: ${error}`);
+        vscode.window.showErrorMessage(`Failed to update space: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 
@@ -522,7 +533,7 @@ async function archiveTask(node: any): Promise<void> {
         await refreshSpaces();
         vscode.window.showInformationMessage(`Task "${node.task.title}" archived.`);
     } catch (error) {
-        vscode.window.showErrorMessage(`Failed to archive task: ${error}`);
+        vscode.window.showErrorMessage(`Failed to archive task: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 
@@ -534,7 +545,7 @@ async function openDailyNote(): Promise<void> {
     }
 
     const rootPath = workspaceFolders[0].uri.fsPath;
-    const dailyDir = path.join(rootPath, '.daily');
+    const dailyDir = path.join(rootPath, DAILY_DIR);
     const today = new Date().toISOString().split('T')[0];
     const filePath = path.join(dailyDir, `${today}.md`);
 
@@ -548,7 +559,7 @@ async function openDailyNote(): Promise<void> {
         const doc = await vscode.workspace.openTextDocument(filePath);
         await vscode.window.showTextDocument(doc);
     } catch (error) {
-        vscode.window.showErrorMessage(`Failed to open daily note: ${error}`);
+        vscode.window.showErrorMessage(`Failed to open daily note: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 
@@ -572,7 +583,7 @@ async function quickCapture(): Promise<void> {
         vscode.window.showInformationMessage(`Task captured in "${space.name}"`);
         await refreshSpaces();
     } catch (error) {
-        vscode.window.showErrorMessage(`Failed to capture task: ${error}`);
+        vscode.window.showErrorMessage(`Failed to capture task: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 
@@ -613,12 +624,11 @@ async function createNewNote(node?: any): Promise<void> {
         await vscode.window.showTextDocument(doc);
         await refreshSpaces();
     } catch (error) {
-        vscode.window.showErrorMessage(`Failed to create note: ${error}`);
+        vscode.window.showErrorMessage(`Failed to create note: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 
 function setupFileWatcher(context: vscode.ExtensionContext): void {
-    let debounceTimer: NodeJS.Timeout | undefined;
     const debouncedRefresh = () => {
         if (debounceTimer) {
             clearTimeout(debounceTimer);

@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { Space, SpaceMeta, SpaceStats, TaskStatus, IFileService, IConfigService, ISpaceService } from '../types';
 import { parseFrontmatter, updateFrontmatter } from '../utils/frontmatterParser';
+import { TASKS_DIR, MEETINGS_DIR, META_FILE } from '../constants';
 
 export class SpaceService implements ISpaceService {
     private spaces: Map<string, Space> = new Map();
@@ -39,7 +40,7 @@ export class SpaceService implements ISpaceService {
         const excludeGlob = `{${excludePatterns.join(',')}}`;
         
         // Single detection method: _meta.md with type: space frontmatter
-        const metaPattern = new vscode.RelativePattern(rootPath, '**/_meta.md');
+        const metaPattern = new vscode.RelativePattern(rootPath, `**/${META_FILE}`);
         const metaFiles = await vscode.workspace.findFiles(metaPattern, excludeGlob, 500);
 
         for (const file of metaFiles) {
@@ -78,8 +79,8 @@ export class SpaceService implements ISpaceService {
     }
 
     private async calculateSpaceStats(rootPath: string): Promise<SpaceStats> {
-        const tasksPath = path.join(rootPath, '.tasks');
-        const meetingsPath = path.join(rootPath, '.meetings');
+        const tasksPath = path.join(rootPath, TASKS_DIR);
+        const meetingsPath = path.join(rootPath, MEETINGS_DIR);
 
         let totalTasks = 0;
         const tasksByStatus: Record<TaskStatus, number> = {
@@ -165,7 +166,7 @@ export class SpaceService implements ISpaceService {
             throw new Error(`Space ${id} not found`);
         }
 
-        const metaPath = path.join(space.rootPath, '_meta.md');
+        const metaPath = path.join(space.rootPath, META_FILE);
         
         try {
             let content: string;
@@ -181,7 +182,7 @@ export class SpaceService implements ISpaceService {
             space.status = status;
             space.updatedAt = new Date();
         } catch (error) {
-            throw new Error(`Failed to update space status: ${error}`);
+            throw new Error(`Failed to update space status`, { cause: error });
         }
     }
 }

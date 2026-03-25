@@ -3,7 +3,6 @@
  */
 
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { Space, Task, Meeting, TaskStatus, KanbanColumnConfig, ITaskService, ISpaceService } from '../types';
 
 interface SpaceBoard {
@@ -53,8 +52,7 @@ export class KanbanPanel {
                 enableScripts: true,
                 localResourceRoots: [
                     vscode.Uri.joinPath(extensionUri, 'media')
-                ],
-                retainContextWhenHidden: true
+                ]
             }
         );
 
@@ -121,6 +119,12 @@ export class KanbanPanel {
                         break;
                     case 'refresh':
                         await this._refresh();
+                        break;
+                    case 'dailyNote':
+                        await vscode.commands.executeCommand('koban.dailyNote');
+                        break;
+                    case 'quickCapture':
+                        await vscode.commands.executeCommand('koban.quickCapture');
                         break;
                 }
             },
@@ -216,6 +220,7 @@ export class KanbanPanel {
                     <div class="kanban-actions">
                         <button id="btn-add-task" class="btn-primary">+ Task</button>
                         <button id="btn-add-meeting" class="btn-secondary">📅 Meeting</button>
+                        <button id="btn-daily-note" class="btn-secondary" title="Daily Note">📝 Daily</button>
                         <button id="btn-refresh" class="btn-icon" title="Refresh">🔄</button>
                     </div>
                 </div>
@@ -238,7 +243,7 @@ export class KanbanPanel {
                         const isDoneColumn = col.status === 'done';
                         return `
                         <div class="kanban-column" data-column-id="${this._escapeAttr(col.id)}" data-status="${this._escapeAttr(col.status)}">
-                            <div class="column-header" style="border-top-color: ${this._escapeAttr(col.color || '#6b7280')}">
+                            <div class="column-header" style="border-top-color: ${this._safeColor(col.color)}">
                                 <span class="column-title">${this._escapeHtml(col.name)}</span>
                                 <span class="column-count">${colTasks.length}</span>
                             </div>
@@ -341,6 +346,11 @@ export class KanbanPanel {
 
     private _escapeAttr(text: string): string {
         return this._escapeHtml(String(text));
+    }
+
+    /** Validate color as hex to prevent CSS injection */
+    private _safeColor(color: string | undefined): string {
+        return color && /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : '#6b7280';
     }
 
     /** Safely serialize JSON for embedding in a <script> block (prevents </script> breakout) */
