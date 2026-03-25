@@ -2,9 +2,7 @@
  * Frontmatter Parser Utility
  */
 
-export interface ParsedFrontmatter {
-    [key: string]: any;
-}
+import { ParsedFrontmatter } from '../types';
 
 export function parseFrontmatter(content: string): ParsedFrontmatter {
     const result: ParsedFrontmatter = {};

@@ -6,37 +6,36 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import YAML from 'yaml';
 import { Space, SpaceMeta, SpaceStats, TaskStatus, IFileService, IConfigService, ISpaceService } from '../types';
-import { FileService } from './fileService';
-import { ConfigService } from './configService';
 import { parseFrontmatter, updateFrontmatter } from '../utils/frontmatterParser';
 
 export class SpaceService implements ISpaceService {
     private spaces: Map<string, Space> = new Map();
-    private fileService: FileService;
-    private configService: ConfigService;
+    private fileService: IFileService;
+    private configService: IConfigService;
 
-    constructor(fileService: FileService, configService: ConfigService) {
+    constructor(fileService: IFileService, configService: IConfigService) {
         this.fileService = fileService;
         this.configService = configService;
     }
 
     async discoverSpaces(): Promise<Space[]> {
-        const previousSpaces = this.spaces;
-        this.spaces = new Map<string, Space>();
+        const newSpaces = new Map<string, Space>();
         
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders) {
+            this.spaces = newSpaces;
             return [];
         }
 
         for (const folder of workspaceFolders) {
-            await this.scanForSpaces(folder.uri.fsPath);
+            await this.scanForSpaces(folder.uri.fsPath, newSpaces);
         }
 
+        this.spaces = newSpaces;
         return Array.from(this.spaces.values());
     }
 
-    private async scanForSpaces(rootPath: string): Promise<void> {
+    private async scanForSpaces(rootPath: string, target: Map<string, Space> = this.spaces): Promise<void> {
         const excludePatterns = this.configService.getExcludePatterns();
         const excludeGlob = `{${excludePatterns.join(',')}}`;
         
@@ -45,7 +44,7 @@ export class SpaceService implements ISpaceService {
         const metaFiles = await vscode.workspace.findFiles(metaPattern, excludeGlob, 500);
 
         for (const file of metaFiles) {
-            await this.processMetaFile(file.fsPath);
+            await this.processMetaFile(file.fsPath, target);
         }
 
         // Method 2: Scan for .mkw/space.yml files (explicit detection)
@@ -55,8 +54,8 @@ export class SpaceService implements ISpaceService {
         for (const file of explicitFiles) {
             const spaceDir = path.dirname(path.dirname(file.fsPath));
             const spaceId = path.basename(spaceDir);
-            if (!this.spaces.has(spaceId)) {
-                await this.createSpaceFromExplicit(spaceDir, spaceId, file.fsPath);
+            if (!target.has(spaceId)) {
+                await this.createSpaceFromExplicit(spaceDir, spaceId, file.fsPath, target);
             }
         }
 
@@ -78,8 +77,8 @@ export class SpaceService implements ISpaceService {
             seenDirs.add(parentDir);
 
             const spaceId = path.basename(parentDir);
-            if (!this.spaces.has(spaceId)) {
-                await this.createSpaceFromConvention(parentDir, spaceId);
+            if (!target.has(spaceId)) {
+                await this.createSpaceFromConvention(parentDir, spaceId, target);
             }
         }
         
@@ -97,13 +96,13 @@ export class SpaceService implements ISpaceService {
             seenDirs.add(parentDir);
 
             const spaceId = path.basename(parentDir);
-            if (!this.spaces.has(spaceId)) {
-                await this.createSpaceFromConvention(parentDir, spaceId);
+            if (!target.has(spaceId)) {
+                await this.createSpaceFromConvention(parentDir, spaceId, target);
             }
         }
     }
 
-    private async processMetaFile(filePath: string): Promise<void> {
+    private async processMetaFile(filePath: string, target: Map<string, Space> = this.spaces): Promise<void> {
         try {
             const content = await this.fileService.readFile(filePath);
             const frontmatter = parseFrontmatter(content);
@@ -129,14 +128,14 @@ export class SpaceService implements ISpaceService {
                     stats
                 };
 
-                this.spaces.set(spaceId, space);
+                target.set(spaceId, space);
             }
         } catch (error) {
             console.error(`Error processing meta file ${filePath}:`, error);
         }
     }
 
-    private async createSpaceFromConvention(rootPath: string, spaceId: string): Promise<void> {
+    private async createSpaceFromConvention(rootPath: string, spaceId: string, target: Map<string, Space> = this.spaces): Promise<void> {
         try {
             const stats = await this.calculateSpaceStats(rootPath);
 
@@ -151,13 +150,13 @@ export class SpaceService implements ISpaceService {
                 stats
             };
 
-            this.spaces.set(spaceId, space);
+            target.set(spaceId, space);
         } catch (error) {
             console.error(`Error creating space from convention ${rootPath}:`, error);
         }
     }
 
-    private async createSpaceFromExplicit(rootPath: string, spaceId: string, configPath: string): Promise<void> {
+    private async createSpaceFromExplicit(rootPath: string, spaceId: string, configPath: string, target: Map<string, Space> = this.spaces): Promise<void> {
         try {
             const content = await this.fileService.readFile(configPath);
             let parsed: Record<string, any> = {};
@@ -182,7 +181,7 @@ export class SpaceService implements ISpaceService {
                 stats
             };
 
-            this.spaces.set(space.id, space);
+            target.set(space.id, space);
         } catch (error) {
             console.error(`Error creating space from explicit config ${configPath}:`, error);
         }
@@ -230,21 +229,20 @@ export class SpaceService implements ISpaceService {
 
         // Count meetings
         try {
-            const meetingFiles = await this.fileService.listFiles(meetingsPath);
+            const allMeetingFiles = await this.fileService.listFiles(meetingsPath);
+            const meetingFiles = allMeetingFiles.filter(f => f.endsWith('.md'));
             totalMeetings = meetingFiles.length;
 
             const today = new Date().toISOString().split('T')[0];
             for (const file of meetingFiles) {
-                if (file.endsWith('.md')) {
-                    try {
-                        const content = await this.fileService.readFile(path.join(meetingsPath, file));
-                        const frontmatter = parseFrontmatter(content);
-                        if (frontmatter.date && frontmatter.date >= today) {
-                            upcomingMeetings++;
-                        }
-                    } catch {
-                        // Ignore
+                try {
+                    const content = await this.fileService.readFile(path.join(meetingsPath, file));
+                    const frontmatter = parseFrontmatter(content);
+                    if (frontmatter.date && String(frontmatter.date) >= today) {
+                        upcomingMeetings++;
                     }
+                } catch {
+                    // Ignore
                 }
             }
         } catch {

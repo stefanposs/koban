@@ -4,18 +4,16 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { Space, Task, Meeting, TaskStatus } from '../types';
-import { SpaceService } from '../services/spaceService';
-import { TaskService } from '../services/taskService';
+import { Space, Task, Meeting, TaskStatus, ISpaceService, ITaskService } from '../types';
 
 export class SpaceExplorerProvider implements vscode.TreeDataProvider<SpaceTreeItem> {
     private _onDidChangeTreeData: vscode.EventEmitter<SpaceTreeItem | undefined | void> = new vscode.EventEmitter<SpaceTreeItem | undefined | void>();
     readonly onDidChangeTreeData: vscode.Event<SpaceTreeItem | undefined | void> = this._onDidChangeTreeData.event;
 
-    private spaceService: SpaceService;
-    private taskService: TaskService;
+    private spaceService: ISpaceService;
+    private taskService: ITaskService;
 
-    constructor(spaceService: SpaceService, taskService: TaskService) {
+    constructor(spaceService: ISpaceService, taskService: ITaskService) {
         this.spaceService = spaceService;
         this.taskService = taskService;
     }

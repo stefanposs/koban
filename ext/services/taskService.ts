@@ -3,7 +3,7 @@
  */
 
 import * as path from 'path';
-import { Task, Meeting, TaskStatus, TaskPriority, TaskMeta, MeetingMeta, IFileService, IConfigService, ISpaceService, ITaskService } from '../types';
+import { Task, Meeting, TaskStatus, TaskPriority, MeetingType, TaskMeta, MeetingMeta, IFileService, IConfigService, ISpaceService, ITaskService } from '../types';
 import { parseFrontmatter, stringifyFrontmatter, updateFrontmatter } from '../utils/frontmatterParser';
 
 export class TaskService implements ITaskService {
@@ -103,7 +103,7 @@ Add task description here...
     async createMeeting(spaceId: string, title: string, date: string, options?: {
         duration?: number;
         attendees?: string[];
-        meetingType?: string;
+        meetingType?: MeetingType;
     }): Promise<Meeting> {
         const spaceRoot = this.findSpaceRoot(spaceId);
         if (!spaceRoot) {
@@ -127,7 +127,7 @@ Add task description here...
             id: meetingId,
             space: spaceId,
             date: date,
-            meeting_type: options?.meetingType as any,
+            meeting_type: options?.meetingType,
             duration: options?.duration ? `${options.duration}m` : undefined,
             participants: options?.attendees
         };

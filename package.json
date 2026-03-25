@@ -252,8 +252,8 @@
       },
       {
         "command": "koban.newTask",
-        "key": "ctrl+shift+t",
-        "mac": "cmd+shift+t",
+        "key": "ctrl+k ctrl+t",
+        "mac": "cmd+k cmd+t",
         "when": "kobanInitialized"
       }
     ],

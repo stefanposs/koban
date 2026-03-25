@@ -4,9 +4,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { Space, Task, Meeting, TaskStatus, KanbanColumnConfig } from '../types';
-import { TaskService } from '../services/taskService';
-import { SpaceService } from '../services/spaceService';
+import { Space, Task, Meeting, TaskStatus, KanbanColumnConfig, ITaskService, ISpaceService } from '../types';
 
 interface SpaceBoard {
     space: Space;
@@ -23,15 +21,15 @@ export class KanbanPanel {
     private _disposables: vscode.Disposable[] = [];
     private _boards: SpaceBoard[];
     private _columns: KanbanColumnConfig[];
-    private _taskService: TaskService;
-    private _spaceService: SpaceService;
+    private _taskService: ITaskService;
+    private _spaceService: ISpaceService;
 
     public static createOrShow(
         extensionUri: vscode.Uri,
         boards: SpaceBoard[],
         columns: KanbanColumnConfig[],
-        taskService: TaskService,
-        spaceService: SpaceService
+        taskService: ITaskService,
+        spaceService: ISpaceService
     ): KanbanPanel {
         const column = vscode.window.activeTextEditor
             ? vscode.ViewColumn.Beside
@@ -69,8 +67,8 @@ export class KanbanPanel {
         extensionUri: vscode.Uri,
         boards: SpaceBoard[],
         columns: KanbanColumnConfig[],
-        taskService: TaskService,
-        spaceService: SpaceService
+        taskService: ITaskService,
+        spaceService: ISpaceService
     ) {
         this._panel = panel;
         this._extensionUri = extensionUri;
@@ -227,7 +225,7 @@ export class KanbanPanel {
                     <span class="meetings-label">📅 Upcoming</span>
                     ${upcomingMeetings.map(m => `
                         <span class="meeting-chip" title="${this._escapeHtml(m.title)}${multiSpace ? ` (${this._escapeHtml(m.spaceName)})` : ''}">
-                            <span class="meeting-date">${new Date(m.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>
+                            <span class="meeting-date">${new Date(m.date).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' })}</span>
                             ${this._escapeHtml(m.title)}
                         </span>
                     `).join('')}

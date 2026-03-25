@@ -3,8 +3,6 @@
  */
 
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
 
 import { IFileService } from '../types';
 
@@ -39,10 +37,11 @@ export class FileService implements IFileService {
 
     async listFiles(dirPath: string): Promise<string[]> {
         try {
-            const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+            const uri = vscode.Uri.file(dirPath);
+            const entries = await vscode.workspace.fs.readDirectory(uri);
             return entries
-                .filter(entry => entry.isFile())
-                .map(entry => entry.name);
+                .filter(([, type]) => type === vscode.FileType.File)
+                .map(([name]) => name);
         } catch (error) {
             throw new Error(`Failed to list files in ${dirPath}: ${error}`);
         }
@@ -50,7 +49,7 @@ export class FileService implements IFileService {
 
     async fileExists(filePath: string): Promise<boolean> {
         try {
-            await fs.promises.access(filePath, fs.constants.F_OK);
+            await vscode.workspace.fs.stat(vscode.Uri.file(filePath));
             return true;
         } catch {
             return false;
@@ -59,8 +58,8 @@ export class FileService implements IFileService {
 
     async directoryExists(dirPath: string): Promise<boolean> {
         try {
-            const stats = await fs.promises.stat(dirPath);
-            return stats.isDirectory();
+            const stat = await vscode.workspace.fs.stat(vscode.Uri.file(dirPath));
+            return (stat.type & vscode.FileType.Directory) !== 0;
         } catch {
             return false;
         }

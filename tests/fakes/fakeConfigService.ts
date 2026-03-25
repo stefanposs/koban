@@ -11,13 +11,17 @@ export class FakeConfigService implements IConfigService {
     defaultSpaceId: string | undefined = undefined;
     autoArchiveDays = 0;
     defaultTaskTemplate = '';
+    defaultMeetingTemplate = '';
     showSystemFolders = false;
+    autoSave = true;
 
     getExcludePatterns(): string[] { return this.excludePatterns; }
     getKanbanColumns(): KanbanColumnConfig[] { return this.kanbanColumns; }
     getDefaultSpaceId(): string | undefined { return this.defaultSpaceId; }
     getAutoArchiveDays(): number { return this.autoArchiveDays; }
+    getAutoSave(): boolean { return this.autoSave; }
     getDefaultTaskTemplate(): string { return this.defaultTaskTemplate; }
+    getDefaultMeetingTemplate(): string { return this.defaultMeetingTemplate; }
     getShowSystemFolders(): boolean { return this.showSystemFolders; }
     onConfigurationChanged(_handler: () => void): { dispose(): void } {
         return { dispose() {} };

@@ -151,7 +151,9 @@ export interface IConfigService {
     getKanbanColumns(): KanbanColumnConfig[];
     getDefaultSpaceId(): string | undefined;
     getAutoArchiveDays(): number;
+    getAutoSave(): boolean;
     getDefaultTaskTemplate(): string;
+    getDefaultMeetingTemplate(): string;
     getShowSystemFolders(): boolean;
     onConfigurationChanged(handler: () => void): { dispose(): void };
 }
@@ -164,7 +166,7 @@ export interface ISpaceService {
 }
 
 export interface ITaskService {
-    createTask(spaceId: string, title: string, options?: { status?: TaskStatus; priority?: TaskPriority; tags?: string[]; assignee?: string }): Promise<Task>;
+    createTask(spaceId: string, title: string, options?: { status?: TaskStatus; priority?: TaskPriority; tags?: string[]; assignee?: string; dueDate?: string }): Promise<Task>;
     getTasksForSpace(spaceId: string, includeArchived?: boolean): Promise<Task[]>;
     getMeetingsForSpace(spaceId: string): Promise<Meeting[]>;
     updateTaskStatus(taskId: string, newStatus: TaskStatus): Promise<void>;

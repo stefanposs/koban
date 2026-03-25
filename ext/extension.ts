@@ -10,6 +10,7 @@ import { SpaceService } from './services/spaceService';
 import { TaskService } from './services/taskService';
 import { FileService } from './services/fileService';
 import { ConfigService } from './services/configService';
+import { TaskStatus } from './types';
 import * as path from 'path';
 
 let spaceService: SpaceService;
@@ -229,6 +230,10 @@ async function createNewSpace(): Promise<void> {
     }
 
     const spaceId = spaceName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    if (!spaceId) {
+        vscode.window.showErrorMessage('Space name must contain at least one alphanumeric character.');
+        return;
+    }
     const rootPath = workspaceFolders[0].uri.fsPath;
     const spacePath = vscode.Uri.file(`${rootPath}/${spaceId}`);
     const today = new Date().toISOString().split('T')[0];
@@ -284,7 +289,7 @@ async function createNewTask(node?: any): Promise<void> {
         spaceId = node.space.id;
     } else {
         // Show quick pick of available spaces, with default space pre-selected
-        const spaces = await spaceService.getSpaces();
+        const spaces = spaceService.getSpaces();
         if (spaces.length === 0) {
             vscode.window.showErrorMessage('No spaces found. Create a space first.');
             return;
@@ -342,7 +347,7 @@ async function createNewMeeting(node?: any): Promise<void> {
     if (node && node.space) {
         spaceId = node.space.id;
     } else {
-        const spaces = await spaceService.getSpaces();
+        const spaces = spaceService.getSpaces();
         if (spaces.length === 0) {
             vscode.window.showErrorMessage('No spaces found. Create a space first.');
             return;
@@ -483,7 +488,7 @@ async function moveTask(node: any, newStatus: string): Promise<void> {
     }
 
     try {
-        await taskService.updateTaskStatus(node.task.id, newStatus as any);
+        await taskService.updateTaskStatus(node.task.id, newStatus as TaskStatus);
         await refreshSpaces();
     } catch (error) {
         vscode.window.showErrorMessage(`Failed to move task: ${error}`);
@@ -555,7 +560,7 @@ async function createTaskFromSelection(): Promise<void> {
         const taskContent = await fileService.readFile(task.filePath);
         const enhancedContent = taskContent.replace(
             '## Links\n- Related tasks:\n- External resources:',
-            `## Links\n- Source: ${codeRef}\n\n## Code Reference\n\`\`\`\n${selectedText}\n\`\`\``
+            `## Links\n- Source: ${codeRef}\n\n## Code Reference\n\`\`\`\`\n${selectedText}\n\`\`\`\``
         );
         await fileService.writeFile(task.filePath, enhancedContent);
 
