@@ -330,8 +330,8 @@ export class KanbanPanel {
             </html>`;
     }
 
-    private _escapeHtml(text: string): string {
-        return text
+    private _escapeHtml(text: string | undefined | null): string {
+        return String(text ?? '')
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')

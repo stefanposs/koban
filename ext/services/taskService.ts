@@ -174,6 +174,13 @@ ${stringifyFrontmatter(frontmatter)}---
             return [];
         }
 
+        // Clear stale entries for this space
+        for (const [id, task] of this.tasks) {
+            if (task.spaceId === spaceId) {
+                this.tasks.delete(id);
+            }
+        }
+
         const tasksDir = path.join(spaceRoot, '.tasks');
         const tasks: Task[] = [];
 

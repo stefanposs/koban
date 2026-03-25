@@ -159,14 +159,6 @@ export class SpaceService implements ISpaceService {
         return this.spaces.get(id);
     }
 
-    async refreshSpace(id: string): Promise<void> {
-        const space = this.spaces.get(id);
-        if (space) {
-            space.stats = await this.calculateSpaceStats(space.rootPath);
-            space.updatedAt = new Date();
-        }
-    }
-
     async updateSpaceStatus(id: string, status: 'active' | 'paused' | 'archived'): Promise<void> {
         const space = this.spaces.get(id);
         if (!space) {

@@ -6,39 +6,37 @@ import * as vscode from 'vscode';
 import { KobanConfig, KanbanColumnConfig, IConfigService } from '../types';
 
 export class ConfigService implements IConfigService {
-    private config: vscode.WorkspaceConfiguration;
-
-    constructor() {
-        this.config = vscode.workspace.getConfiguration('koban');
+    private getConfig(): vscode.WorkspaceConfiguration {
+        return vscode.workspace.getConfiguration('koban');
     }
 
     getExcludePatterns(): string[] {
-        return this.config.get('excludePatterns') || [
+        return this.getConfig().get<string[]>('excludePatterns', [
             '**/node_modules/**',
             '**/.git/**',
             '**/dist/**',
             '**/build/**'
-        ];
+        ]);
     }
 
     getShowSystemFolders(): boolean {
-        return this.config.get('showSystemFolders') || false;
+        return this.getConfig().get<boolean>('showSystemFolders', false);
     }
 
     getAutoSave(): boolean {
-        return this.config.get('autoSave') !== false;
+        return this.getConfig().get<boolean>('autoSave', true);
     }
 
     getAutoArchiveDays(): number {
-        return this.config.get('autoArchiveDays') || 0; // 0 = disabled
+        return this.getConfig().get<number>('autoArchiveDays', 0);
     }
 
     getDefaultSpaceId(): string | undefined {
-        return this.config.get('defaultSpace') || undefined;
+        return this.getConfig().get<string>('defaultSpace') || undefined;
     }
 
     getKanbanColumns(): KanbanColumnConfig[] {
-        return this.config.get('kanbanColumns') || [
+        return this.getConfig().get<KanbanColumnConfig[]>('kanbanColumns', [
             {
                 id: 'todo',
                 name: 'To Do',
@@ -63,11 +61,11 @@ export class ConfigService implements IConfigService {
                 status: 'done',
                 color: '#10b981'
             }
-        ];
+        ]);
     }
 
     getDefaultTaskTemplate(): string {
-        return this.config.get('defaultTaskTemplate') || `---
+        return this.getConfig().get<string>('defaultTaskTemplate', `---
 id: {{id}}
 space: {{space}}
 status: todo
@@ -83,11 +81,11 @@ created: {{date}}
 - [ ] 
 
 ## Links
-`;
+`);
     }
 
     getDefaultMeetingTemplate(): string {
-        return this.config.get('defaultMeetingTemplate') || `---
+        return this.getConfig().get<string>('defaultMeetingTemplate', `---
 type: meeting
 id: {{id}}
 space: {{space}}
@@ -105,13 +103,12 @@ date: {{date}}
 - [ ] 
 
 ## Decisions
-`;
+`);
     }
 
     onConfigurationChanged(callback: () => void): vscode.Disposable {
         return vscode.workspace.onDidChangeConfiguration(e => {
             if (e.affectsConfiguration('koban')) {
-                this.config = vscode.workspace.getConfiguration('koban');
                 callback();
             }
         });

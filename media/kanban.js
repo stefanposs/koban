@@ -432,15 +432,31 @@
         const columns = window.kanbanData.columns;
         const menu = document.createElement('div');
         menu.className = 'context-menu';
-        menu.innerHTML = `
-            <div class="context-menu-item" data-action="open">📄 Open</div>
-            <div class="context-menu-item" data-action="archive">📦 Archive</div>
-            <div class="context-menu-item" data-action="delete">🗑️ Delete</div>
-            <div class="context-menu-divider"></div>
-            ${columns.map((col, i) => 
-                `<div class="context-menu-item" data-action="move" data-status="${col.status}">→ ${col.name}</div>`
-            ).join('')}
-        `;
+
+        function addMenuItem(label, action, attrs) {
+            const item = document.createElement('div');
+            item.className = 'context-menu-item';
+            item.textContent = label;
+            item.dataset.action = action;
+            if (attrs) {
+                for (const [k, v] of Object.entries(attrs)) {
+                    item.dataset[k] = v;
+                }
+            }
+            menu.appendChild(item);
+        }
+
+        addMenuItem('📄 Open', 'open');
+        addMenuItem('📦 Archive', 'archive');
+        addMenuItem('🗑️ Delete', 'delete');
+
+        const divider = document.createElement('div');
+        divider.className = 'context-menu-divider';
+        menu.appendChild(divider);
+
+        columns.forEach(col => {
+            addMenuItem('→ ' + col.name, 'move', { status: col.status });
+        });
 
         menu.style.left = e.clientX + 'px';
         menu.style.top = e.clientY + 'px';

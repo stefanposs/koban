@@ -87,8 +87,11 @@ export function stringifyFrontmatter(data: ParsedFrontmatter): string {
         if (Array.isArray(value)) {
             lines.push(`${key}: [${value.map(v => `"${v}"`).join(', ')}]`);
         } else if (typeof value === 'string') {
-            // Check if string needs quotes
-            if (value.includes(':') || value.includes('#') || value.includes('"')) {
+            // Quote strings that could be misinterpreted as YAML
+            const needsQuotes = value.includes(':') || value.includes('#') || value.includes('"') ||
+                value === 'true' || value === 'false' || value === 'null' || value === '' ||
+                (!isNaN(Number(value)) && value.trim() !== '');
+            if (needsQuotes) {
                 lines.push(`${key}: "${value.replace(/"/g, '\\"')}"`);
             } else {
                 lines.push(`${key}: ${value}`);

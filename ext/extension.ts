@@ -145,6 +145,43 @@ export function deactivate() {
     console.log('Koban extension is now deactivated');
 }
 
+async function pickSpace(node?: any, options?: { useDefault?: boolean }): Promise<Space | undefined> {
+    if (node && node.space) {
+        return node.space;
+    }
+
+    const spaces = spaceService.getSpaces();
+    if (spaces.length === 0) {
+        vscode.window.showErrorMessage('No spaces found. Create a space first.');
+        return undefined;
+    }
+
+    if (spaces.length === 1) {
+        return spaces[0];
+    }
+
+    if (options?.useDefault) {
+        const defaultId = configService.getDefaultSpaceId();
+        const defaultSpace = defaultId ? spaces.find(s => s.id === defaultId) : undefined;
+        if (defaultSpace) { return defaultSpace; }
+    }
+
+    const defaultSpaceId = configService.getDefaultSpaceId();
+    const items = spaces.map(s => ({
+        label: s.name,
+        description: s.id === defaultSpaceId ? '(default)' : s.id,
+        space: s
+    }));
+    if (defaultSpaceId) {
+        items.sort((a, b) => (a.space.id === defaultSpaceId ? -1 : b.space.id === defaultSpaceId ? 1 : 0));
+    }
+
+    const selected = await vscode.window.showQuickPick(items, {
+        placeHolder: 'Select a space'
+    });
+    return selected?.space;
+}
+
 async function createNewSpace(): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -232,51 +269,20 @@ async function createNewSpace(): Promise<void> {
 }
 
 async function createNewTask(node?: any): Promise<void> {
-    let spaceId: string | undefined;
-    
-    if (node && node.space) {
-        spaceId = node.space.id;
-    } else {
-        // Show quick pick of available spaces, with default space pre-selected
-        const spaces = spaceService.getSpaces();
-        if (spaces.length === 0) {
-            vscode.window.showErrorMessage('No spaces found. Create a space first.');
-            return;
-        }
-        
-        if (spaces.length === 1) {
-            // Only one space — use it directly
-            spaceId = spaces[0].id;
-        } else {
-            const defaultSpaceId = configService.getDefaultSpaceId();
-            const items = spaces.map(s => ({
-                label: s.name,
-                description: s.id === defaultSpaceId ? '(default)' : s.id,
-                space: s
-            }));
-            // Put default space first
-            if (defaultSpaceId) {
-                items.sort((a, b) => (a.space.id === defaultSpaceId ? -1 : b.space.id === defaultSpaceId ? 1 : 0));
-            }
-            const selected = await vscode.window.showQuickPick(items, {
-                placeHolder: 'Select a space for the task'
-            });
-            if (!selected) { return; }
-            spaceId = selected.space.id;
-        }
-    }
+    const space = await pickSpace(node);
+    if (!space) { return; }
 
     const taskTitle = await vscode.window.showInputBox({
         prompt: 'Enter task title',
         placeHolder: 'e.g., Implement API endpoint'
     });
 
-    if (!taskTitle || !spaceId) {
+    if (!taskTitle) {
         return;
     }
 
     try {
-        const task = await taskService.createTask(spaceId, taskTitle);
+        const task = await taskService.createTask(space.id, taskTitle);
         vscode.window.showInformationMessage(`Task "${taskTitle}" created successfully!`);
         
         // Refresh the tree view
@@ -291,34 +297,15 @@ async function createNewTask(node?: any): Promise<void> {
 }
 
 async function createNewMeeting(node?: any): Promise<void> {
-    let spaceId: string | undefined;
-    
-    if (node && node.space) {
-        spaceId = node.space.id;
-    } else {
-        const spaces = spaceService.getSpaces();
-        if (spaces.length === 0) {
-            vscode.window.showErrorMessage('No spaces found. Create a space first.');
-            return;
-        }
-        
-        const selected = await vscode.window.showQuickPick(
-            spaces.map(s => ({ label: s.name, description: s.id, space: s })),
-            { placeHolder: 'Select a space' }
-        );
-        
-        if (!selected) {
-            return;
-        }
-        spaceId = selected.space.id;
-    }
+    const space = await pickSpace(node);
+    if (!space) { return; }
 
     const meetingTitle = await vscode.window.showInputBox({
         prompt: 'Enter meeting title',
         placeHolder: 'e.g., Sprint Planning'
     });
 
-    if (!meetingTitle || !spaceId) {
+    if (!meetingTitle) {
         return;
     }
 
@@ -333,7 +320,7 @@ async function createNewMeeting(node?: any): Promise<void> {
     }
 
     try {
-        const meeting = await taskService.createMeeting(spaceId, meetingTitle, meetingDate);
+        const meeting = await taskService.createMeeting(space.id, meetingTitle, meetingDate);
         vscode.window.showInformationMessage(`Meeting "${meetingTitle}" created successfully!`);
         
         await refreshSpaces();
@@ -469,18 +456,8 @@ async function createTaskFromSelection(): Promise<void> {
         return;
     }
 
-    const spaces = spaceService.getSpaces();
-    if (spaces.length === 0) {
-        vscode.window.showErrorMessage('No spaces found. Create a space first.');
-        return;
-    }
-
-    const selected = await vscode.window.showQuickPick(
-        spaces.map(s => ({ label: s.name, description: s.id, space: s })),
-        { placeHolder: 'Select a space for the new task' }
-    );
-
-    if (!selected) {
+    const space = await pickSpace();
+    if (!space) {
         return;
     }
 
@@ -504,7 +481,7 @@ async function createTaskFromSelection(): Promise<void> {
         const lineNumber = selection.start.line + 1;
         const codeRef = `[${relativePath}#L${lineNumber}](${relativePath}#L${lineNumber})`;
 
-        const task = await taskService.createTask(selected.space.id, taskTitle);
+        const task = await taskService.createTask(space.id, taskTitle);
 
         // Append code reference to the task file
         const taskContent = await fileService.readFile(task.filePath);
@@ -576,12 +553,6 @@ async function openDailyNote(): Promise<void> {
 }
 
 async function quickCapture(): Promise<void> {
-    const spaces = spaceService.getSpaces();
-    if (spaces.length === 0) {
-        vscode.window.showErrorMessage('No spaces found. Create a space first.');
-        return;
-    }
-
     const taskTitle = await vscode.window.showInputBox({
         prompt: 'Quick Capture — Enter task title',
         placeHolder: 'What needs to be done?'
@@ -591,18 +562,14 @@ async function quickCapture(): Promise<void> {
         return;
     }
 
-    // Use default space or first active space
-    const defaultSpaceId = configService.getDefaultSpaceId();
-    let targetSpace = defaultSpaceId
-        ? spaces.find(s => s.id === defaultSpaceId)
-        : spaces.find(s => s.status === 'active');
-    if (!targetSpace) {
-        targetSpace = spaces[0];
+    const space = await pickSpace(undefined, { useDefault: true });
+    if (!space) {
+        return;
     }
 
     try {
-        await taskService.createTask(targetSpace.id, taskTitle);
-        vscode.window.showInformationMessage(`Task captured in "${targetSpace.name}"`);
+        await taskService.createTask(space.id, taskTitle);
+        vscode.window.showInformationMessage(`Task captured in "${space.name}"`);
         await refreshSpaces();
     } catch (error) {
         vscode.window.showErrorMessage(`Failed to capture task: ${error}`);
@@ -624,26 +591,9 @@ function updateStatusBar(): void {
 }
 
 async function createNewNote(node?: any): Promise<void> {
-    let space: Space | undefined;
-
-    if (node && node.space) {
-        space = node.space;
-    } else {
-        const spaces = spaceService.getSpaces();
-        if (spaces.length === 0) {
-            vscode.window.showErrorMessage('No spaces found. Create a space first.');
-            return;
-        }
-        if (spaces.length === 1) {
-            space = spaces[0];
-        } else {
-            const selected = await vscode.window.showQuickPick(
-                spaces.map(s => ({ label: s.name, description: s.id, space: s })),
-                { placeHolder: 'Select a space for the note' }
-            );
-            if (!selected) { return; }
-            space = selected.space;
-        }
+    const space = await pickSpace(node);
+    if (!space) {
+        return;
     }
 
     const title = await vscode.window.showInputBox({
