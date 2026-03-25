@@ -1,0 +1,93 @@
+site_name: Koban Documentation
+site_description: >-
+  Markdown-powered Kanban board for VS Code — your workspace, in plain sight.
+  Tasks as .md files, zero lock-in, Git-friendly project management.
+site_author: Stefan Poss
+
+repo_name: stefanposs/koban
+repo_url: https://github.com/stefanposs/koban
+
+docs_dir: assets/mkdocs
+site_dir: docs
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.instant
+    - navigation.tracking
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+  font:
+    text: Roboto
+    code: Roboto Mono
+  icon:
+    repo: fontawesome/brands/github
+
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+  - search
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.snippets
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - admonition
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.inlinehilite
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Why Koban: why-koban.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Services: architecture/services.md
+      - Data Model: architecture/data-model.md
+  - Setup:
+      - Installation: setup/installation.md
+      - Configuration: setup/configuration.md
+  - Guides:
+      - Spaces: guides/spaces.md
+      - Tasks & Meetings: guides/tasks-meetings.md
+      - Keyboard Shortcuts: guides/keyboard-shortcuts.md
+  - Development:
+      - Getting Started: development/getting-started.md
+      - Testing: development/testing.md
+      - Contributing: development/contributing.md

@@ -1,0 +1,347 @@
+{
+  "name": "koban",
+  "displayName": "Koban - Markdown Kanban Workspace",
+  "description": "A VS Code extension that bridges folder-based project structures with visual Kanban boards using Markdown as the single source of truth",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "stefanposs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stefanposs/koban"
+  },
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization",
+    "Productivity"
+  ],
+  "icon": "media/koban-logo.png",
+  "keywords": [
+    "kanban",
+    "markdown",
+    "project management",
+    "task management",
+    "workspace"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.cjs",
+  "contributes": {
+    "commands": [
+      {
+        "command": "koban.newSpace",
+        "title": "New Space",
+        "category": "Koban",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "koban.newTask",
+        "title": "New Task",
+        "category": "Koban",
+        "icon": "$(add)"
+      },
+      {
+        "command": "koban.newMeeting",
+        "title": "New Meeting",
+        "category": "Koban",
+        "icon": "$(calendar)"
+      },
+      {
+        "command": "koban.openKanban",
+        "title": "Open Kanban Board",
+        "category": "Koban",
+        "icon": "$(layout)"
+      },
+      {
+        "command": "koban.reindexSpaces",
+        "title": "Reindex Spaces",
+        "category": "Koban",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "koban.initializeWorkspace",
+        "title": "Initialize Workspace",
+        "category": "Koban",
+        "icon": "$(repo-create)"
+      },
+      {
+        "command": "koban.refreshSpaces",
+        "title": "Refresh",
+        "category": "Koban",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "koban.openTask",
+        "title": "Open Task",
+        "category": "Koban"
+      },
+      {
+        "command": "koban.deleteTask",
+        "title": "Delete Task",
+        "category": "Koban",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "koban.moveTask",
+        "title": "Move Task",
+        "category": "Koban"
+      },
+      {
+        "command": "koban.createTaskFromSelection",
+        "title": "Create Task from Selection",
+        "category": "Koban",
+        "icon": "$(tasklist)"
+      },
+      {
+        "command": "koban.pauseSpace",
+        "title": "Pause Space",
+        "category": "Koban",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "koban.archiveSpace",
+        "title": "Archive Space",
+        "category": "Koban",
+        "icon": "$(archive)"
+      },
+      {
+        "command": "koban.activateSpace",
+        "title": "Activate Space",
+        "category": "Koban",
+        "icon": "$(play)"
+      },
+      {
+        "command": "koban.archiveTask",
+        "title": "Archive Task",
+        "category": "Koban",
+        "icon": "$(archive)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "koban",
+          "title": "Koban",
+          "icon": "media/koban-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "koban": [
+        {
+          "id": "kobanSpaces",
+          "name": "Spaces"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "kobanSpaces",
+        "contents": "Welcome to Koban!\nOrganize your projects with Markdown-powered Kanban boards.\n[🚀 Initialize Koban Workspace](command:koban.initializeWorkspace)\n[+ Create New Space](command:koban.newSpace)"
+      },
+      {
+        "view": "kobanSpaces",
+        "contents": "No spaces found.\n[+ Create New Space](command:koban.newSpace)",
+        "when": "kobanInitialized && !workspaceHasKobanSpaces"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "koban.newSpace",
+          "when": "view == kobanSpaces",
+          "group": "navigation@1"
+        },
+        {
+          "command": "koban.refreshSpaces",
+          "when": "view == kobanSpaces",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "koban.newTask",
+          "when": "view == kobanSpaces && viewItem == space",
+          "group": "inline@1"
+        },
+        {
+          "command": "koban.newMeeting",
+          "when": "view == kobanSpaces && viewItem == space",
+          "group": "inline@2"
+        },
+        {
+          "command": "koban.openKanban",
+          "when": "view == kobanSpaces && viewItem == space",
+          "group": "inline@3"
+        },
+        {
+          "command": "koban.pauseSpace",
+          "when": "view == kobanSpaces && viewItem == space",
+          "group": "space@1"
+        },
+        {
+          "command": "koban.archiveSpace",
+          "when": "view == kobanSpaces && viewItem == space",
+          "group": "space@2"
+        },
+        {
+          "command": "koban.activateSpace",
+          "when": "view == kobanSpaces && viewItem =~ /^space-(paused|archived)$/",
+          "group": "space@3"
+        },
+        {
+          "command": "koban.openTask",
+          "when": "view == kobanSpaces && viewItem == task",
+          "group": "inline@1"
+        },
+        {
+          "command": "koban.deleteTask",
+          "when": "view == kobanSpaces && viewItem == task",
+          "group": "inline@2"
+        },
+        {
+          "command": "koban.archiveTask",
+          "when": "view == kobanSpaces && viewItem == task",
+          "group": "task@1"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "koban.createTaskFromSelection",
+          "when": "editorHasSelection",
+          "group": "koban@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "koban.initializeWorkspace",
+          "when": "!kobanInitialized"
+        },
+        {
+          "command": "koban.newSpace",
+          "when": "kobanInitialized"
+        },
+        {
+          "command": "koban.newTask",
+          "when": "kobanInitialized"
+        },
+        {
+          "command": "koban.newMeeting",
+          "when": "kobanInitialized"
+        },
+        {
+          "command": "koban.openKanban",
+          "when": "kobanInitialized"
+        },
+        {
+          "command": "koban.reindexSpaces",
+          "when": "kobanInitialized"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "koban.openKanban",
+        "key": "ctrl+shift+k",
+        "mac": "cmd+shift+k",
+        "when": "kobanInitialized"
+      },
+      {
+        "command": "koban.newTask",
+        "key": "ctrl+shift+t",
+        "mac": "cmd+shift+t",
+        "when": "kobanInitialized"
+      }
+    ],
+    "configuration": {
+      "title": "Koban",
+      "properties": {
+        "koban.excludePatterns": {
+          "type": "array",
+          "default": [
+            "**/node_modules/**",
+            "**/.git/**",
+            "**/dist/**",
+            "**/build/**"
+          ],
+          "description": "File patterns to exclude from space detection"
+        },
+        "koban.showSystemFolders": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show hidden system folders (.tasks, .meetings) in the file explorer"
+        },
+        "koban.autoSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically save changes when moving tasks between columns"
+        },
+        "koban.defaultSpace": {
+          "type": "string",
+          "default": "",
+          "description": "Default space ID for new tasks (skip space picker when set)"
+        },
+        "koban.autoArchiveDays": {
+          "type": "number",
+          "default": 0,
+          "description": "Auto-archive done tasks after N days (0 = disabled)"
+        },
+        "koban.kanbanColumns": {
+          "type": "array",
+          "default": [
+            {
+              "id": "todo",
+              "name": "To Do",
+              "status": "todo",
+              "color": "#6b7280"
+            },
+            {
+              "id": "in-progress",
+              "name": "In Progress",
+              "status": "in-progress",
+              "color": "#3b82f6"
+            },
+            {
+              "id": "review",
+              "name": "Review",
+              "status": "review",
+              "color": "#f59e0b"
+            },
+            {
+              "id": "done",
+              "name": "Done",
+              "status": "done",
+              "color": "#10b981"
+            }
+          ],
+          "description": "Kanban board columns configuration"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build:ext -- --production",
+    "build:ext": "node esbuild.ext.mjs",
+    "build:all": "npm run build:ext",
+    "watch:ext": "node esbuild.ext.mjs --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "package": "npm run build:all && npx @vscode/vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "^22.0.0",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.24.0",
+    "typescript": "~5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "yaml": "^2.3.4"
+  }
+}
