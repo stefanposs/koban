@@ -4,7 +4,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { Space, Task, Meeting, TaskStatus, ISpaceService, ITaskService } from '../types';
+import { Space, Task, Meeting, TaskStatus, ISpaceService, ITaskService, IFileService } from '../types';
 
 export class SpaceExplorerProvider implements vscode.TreeDataProvider<SpaceTreeItem> {
     private _onDidChangeTreeData: vscode.EventEmitter<SpaceTreeItem | undefined | void> = new vscode.EventEmitter<SpaceTreeItem | undefined | void>();
@@ -12,10 +12,12 @@ export class SpaceExplorerProvider implements vscode.TreeDataProvider<SpaceTreeI
 
     private spaceService: ISpaceService;
     private taskService: ITaskService;
+    private fileService: IFileService;
 
-    constructor(spaceService: ISpaceService, taskService: ITaskService) {
+    constructor(spaceService: ISpaceService, taskService: ITaskService, fileService: IFileService) {
         this.spaceService = spaceService;
         this.taskService = taskService;
+        this.fileService = fileService;
     }
 
     refresh(): void {
@@ -50,6 +52,17 @@ export class SpaceExplorerProvider implements vscode.TreeDataProvider<SpaceTreeI
                 items.push(new CategoryItem('Meetings', 'meetings', space, meetings.length));
             }
 
+            // Notes category — loose .md files in space root (excluding _meta.md)
+            try {
+                const files = await this.fileService.listFiles(space.rootPath);
+                const notes = files.filter(f => f.endsWith('.md') && f !== '_meta.md');
+                if (notes.length > 0) {
+                    items.push(new CategoryItem('Notes', 'notes', space, notes.length));
+                }
+            } catch {
+                // ignore
+            }
+
             return items;
         }
 
@@ -65,6 +78,16 @@ export class SpaceExplorerProvider implements vscode.TreeDataProvider<SpaceTreeI
             if (element.categoryType === 'meetings') {
                 const meetings = await this.taskService.getMeetingsForSpace(space.id);
                 return meetings.map(meeting => new MeetingItem(meeting, space));
+            }
+
+            if (element.categoryType === 'notes') {
+                try {
+                    const files = await this.fileService.listFiles(space.rootPath);
+                    const notes = files.filter(f => f.endsWith('.md') && f !== '_meta.md');
+                    return notes.map(f => new NoteItem(f, space));
+                } catch {
+                    return [];
+                }
             }
         }
 
@@ -86,7 +109,7 @@ export class SpaceExplorerProvider implements vscode.TreeDataProvider<SpaceTreeI
     }
 }
 
-export type SpaceTreeItem = SpaceItem | CategoryItem | TaskItem | MeetingItem;
+export type SpaceTreeItem = SpaceItem | CategoryItem | TaskItem | MeetingItem | NoteItem;
 
 export class SpaceItem extends vscode.TreeItem {
     space: Space;
@@ -243,6 +266,24 @@ export class MeetingItem extends vscode.TreeItem {
             command: 'vscode.open',
             title: 'Open Meeting',
             arguments: [vscode.Uri.file(meeting.filePath)]
+        };
+    }
+}
+
+export class NoteItem extends vscode.TreeItem {
+    space: Space;
+
+    constructor(fileName: string, space: Space) {
+        super(fileName.replace('.md', ''), vscode.TreeItemCollapsibleState.None);
+        this.space = space;
+        this.contextValue = 'note';
+        this.iconPath = new vscode.ThemeIcon('note');
+        this.tooltip = fileName;
+        const filePath = path.join(space.rootPath, fileName);
+        this.command = {
+            command: 'vscode.open',
+            title: 'Open Note',
+            arguments: [vscode.Uri.file(filePath)]
         };
     }
 }

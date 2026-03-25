@@ -235,14 +235,12 @@ export class KanbanPanel {
                 <div class="kanban-board">
                     ${this._columns.map(col => {
                         const colTasks = tasksByColumn[col.id] || [];
-                        const isWipExceeded = col.wipLimit && colTasks.length > col.wipLimit;
                         const isDoneColumn = col.status === 'done';
                         return `
-                        <div class="kanban-column ${isWipExceeded ? 'wip-exceeded' : ''}" data-column-id="${this._escapeAttr(col.id)}" data-status="${this._escapeAttr(col.status)}">
+                        <div class="kanban-column" data-column-id="${this._escapeAttr(col.id)}" data-status="${this._escapeAttr(col.status)}">
                             <div class="column-header" style="border-top-color: ${this._escapeAttr(col.color || '#6b7280')}">
                                 <span class="column-title">${this._escapeHtml(col.name)}</span>
-                                <span class="column-count">${colTasks.length}${col.wipLimit ? `/${col.wipLimit}` : ''}</span>
-                                ${isWipExceeded ? '<span class="wip-warning">⚠ WIP</span>' : ''}
+                                <span class="column-count">${colTasks.length}</span>
                             </div>
                             <div class="column-content" data-status="${this._escapeAttr(col.status)}">
                                 ${colTasks.length === 0 ? '<div class="column-empty">No tasks</div>' : ''}

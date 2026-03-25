@@ -4,7 +4,6 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import YAML from 'yaml';
 import { Space, SpaceMeta, SpaceStats, TaskStatus, IFileService, IConfigService, ISpaceService } from '../types';
 import { parseFrontmatter, updateFrontmatter } from '../utils/frontmatterParser';
 
@@ -35,74 +34,20 @@ export class SpaceService implements ISpaceService {
         return Array.from(this.spaces.values());
     }
 
-    private async scanForSpaces(rootPath: string, target: Map<string, Space> = this.spaces): Promise<void> {
+    private async scanForSpaces(rootPath: string, target: Map<string, Space>): Promise<void> {
         const excludePatterns = this.configService.getExcludePatterns();
         const excludeGlob = `{${excludePatterns.join(',')}}`;
         
-        // Method 1: Scan for _meta.md files (frontmatter detection)
+        // Single detection method: _meta.md with type: space frontmatter
         const metaPattern = new vscode.RelativePattern(rootPath, '**/_meta.md');
         const metaFiles = await vscode.workspace.findFiles(metaPattern, excludeGlob, 500);
 
         for (const file of metaFiles) {
             await this.processMetaFile(file.fsPath, target);
         }
-
-        // Method 2: Scan for .mkw/space.yml files (explicit detection)
-        const explicitPattern = new vscode.RelativePattern(rootPath, '**/.mkw/space.yml');
-        const explicitFiles = await vscode.workspace.findFiles(explicitPattern, excludeGlob, 100);
-
-        for (const file of explicitFiles) {
-            const spaceDir = path.dirname(path.dirname(file.fsPath));
-            const spaceId = path.basename(spaceDir);
-            if (!target.has(spaceId)) {
-                await this.createSpaceFromExplicit(spaceDir, spaceId, file.fsPath, target);
-            }
-        }
-
-        // Method 3: Scan for directories containing .tasks or .meetings folders
-        // We look for any file inside these folders to identify the parent directory
-        const seenDirs = new Set<string>();
-        
-        // Check for .tasks folders
-        const tasksPattern = new vscode.RelativePattern(rootPath, '**/.tasks/*');
-        const taskFiles = await vscode.workspace.findFiles(tasksPattern, excludeGlob, 500);
-        
-        for (const file of taskFiles) {
-            const tasksDir = path.dirname(file.fsPath);
-            const parentDir = path.dirname(tasksDir);
-            
-            if (seenDirs.has(parentDir)) {
-                continue;
-            }
-            seenDirs.add(parentDir);
-
-            const spaceId = path.basename(parentDir);
-            if (!target.has(spaceId)) {
-                await this.createSpaceFromConvention(parentDir, spaceId, target);
-            }
-        }
-        
-        // Check for .meetings folders (in case a space has meetings but no tasks)
-        const meetingsPattern = new vscode.RelativePattern(rootPath, '**/.meetings/*');
-        const meetingFiles = await vscode.workspace.findFiles(meetingsPattern, excludeGlob, 500);
-        
-        for (const file of meetingFiles) {
-            const meetingsDir = path.dirname(file.fsPath);
-            const parentDir = path.dirname(meetingsDir);
-            
-            if (seenDirs.has(parentDir)) {
-                continue;
-            }
-            seenDirs.add(parentDir);
-
-            const spaceId = path.basename(parentDir);
-            if (!target.has(spaceId)) {
-                await this.createSpaceFromConvention(parentDir, spaceId, target);
-            }
-        }
     }
 
-    private async processMetaFile(filePath: string, target: Map<string, Space> = this.spaces): Promise<void> {
+    private async processMetaFile(filePath: string, target: Map<string, Space>): Promise<void> {
         try {
             const content = await this.fileService.readFile(filePath);
             const frontmatter = parseFrontmatter(content);
@@ -120,11 +65,8 @@ export class SpaceService implements ISpaceService {
                     description: meta.description,
                     rootPath: rootPath,
                     status: meta.status || 'active',
-                    color: meta.color,
-                    owner: meta.owner,
                     createdAt: meta.created ? new Date(meta.created) : new Date(),
                     updatedAt: new Date(),
-                    detectionMethod: 'frontmatter',
                     stats
                 };
 
@@ -132,58 +74,6 @@ export class SpaceService implements ISpaceService {
             }
         } catch (error) {
             console.error(`Error processing meta file ${filePath}:`, error);
-        }
-    }
-
-    private async createSpaceFromConvention(rootPath: string, spaceId: string, target: Map<string, Space> = this.spaces): Promise<void> {
-        try {
-            const stats = await this.calculateSpaceStats(rootPath);
-
-            const space: Space = {
-                id: spaceId,
-                name: spaceId,
-                rootPath: rootPath,
-                status: 'active',
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                detectionMethod: 'convention',
-                stats
-            };
-
-            target.set(spaceId, space);
-        } catch (error) {
-            console.error(`Error creating space from convention ${rootPath}:`, error);
-        }
-    }
-
-    private async createSpaceFromExplicit(rootPath: string, spaceId: string, configPath: string, target: Map<string, Space> = this.spaces): Promise<void> {
-        try {
-            const content = await this.fileService.readFile(configPath);
-            let parsed: Record<string, any> = {};
-            try {
-                parsed = YAML.parse(content) || {};
-            } catch {
-                // Fall back to empty if YAML parsing fails
-            }
-            const stats = await this.calculateSpaceStats(rootPath);
-
-            const space: Space = {
-                id: parsed.id || spaceId,
-                name: parsed.name || spaceId,
-                description: parsed.description,
-                rootPath: rootPath,
-                status: parsed.status || 'active',
-                color: parsed.color,
-                owner: parsed.owner,
-                createdAt: parsed.created ? new Date(parsed.created) : new Date(),
-                updatedAt: new Date(),
-                detectionMethod: 'explicit',
-                stats
-            };
-
-            target.set(space.id, space);
-        } catch (error) {
-            console.error(`Error creating space from explicit config ${configPath}:`, error);
         }
     }
 

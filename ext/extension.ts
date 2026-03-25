@@ -19,6 +19,7 @@ let fileService: FileService;
 let configService: ConfigService;
 let spaceExplorerProvider: SpaceExplorerProvider;
 let extensionUri: vscode.Uri;
+let statusBarItem: vscode.StatusBarItem;
 
 export async function activate(context: vscode.ExtensionContext) {
     console.log('Koban extension is now active');
@@ -31,22 +32,14 @@ export async function activate(context: vscode.ExtensionContext) {
     taskService = new TaskService(fileService, configService, spaceService);
 
     // Initialize Space Explorer Tree View
-    spaceExplorerProvider = new SpaceExplorerProvider(spaceService, taskService);
+    spaceExplorerProvider = new SpaceExplorerProvider(spaceService, taskService, fileService);
     const treeView = vscode.window.createTreeView('kobanSpaces', {
         treeDataProvider: spaceExplorerProvider,
         showCollapseAll: true
     });
 
-    // Set context to indicate Koban is initialized
-    vscode.commands.executeCommand('setContext', 'kobanInitialized', true);
-
     // Register commands
     context.subscriptions.push(
-        // Initialize Workspace
-        vscode.commands.registerCommand('koban.initializeWorkspace', async () => {
-            await initializeWorkspace();
-        }),
-
         // New Space
         vscode.commands.registerCommand('koban.newSpace', async () => {
             await createNewSpace();
@@ -117,83 +110,34 @@ export async function activate(context: vscode.ExtensionContext) {
             await archiveTask(node);
         }),
 
+        // Daily Note
+        vscode.commands.registerCommand('koban.dailyNote', async () => {
+            await openDailyNote();
+        }),
+
+        // Quick Capture
+        vscode.commands.registerCommand('koban.quickCapture', async () => {
+            await quickCapture();
+        }),
+
         // Tree view
         treeView
     );
 
+    // Status bar
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
+    statusBarItem.command = 'koban.openKanban';
+    context.subscriptions.push(statusBarItem);
+
     // Watch for file changes
     setupFileWatcher(context);
 
-    // Auto-open Kanban board when sidebar becomes visible
-    const visibilityDisposable = treeView.onDidChangeVisibility(e => {
-        if (e.visible && spaceService.getSpaces().length > 0) {
-            openKanbanBoard();
-        }
-    });
-    context.subscriptions.push(visibilityDisposable);
-
-    // Initial space discovery (await to ensure tree view is populated on startup)
+    // Initial space discovery
     await discoverSpaces();
-
-    // Auto-open Kanban board if spaces exist (zero-click UX)
-    const spaces = spaceService.getSpaces();
-    if (spaces.length > 0) {
-        openKanbanBoard();
-    }
 }
 
 export function deactivate() {
     console.log('Koban extension is now deactivated');
-}
-
-async function initializeWorkspace(): Promise<void> {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders || workspaceFolders.length === 0) {
-        vscode.window.showErrorMessage('No workspace folder open');
-        return;
-    }
-
-    const rootPath = workspaceFolders[0].uri.fsPath;
-    const rootUri = vscode.Uri.file(rootPath);
-    const today = new Date().toISOString().split('T')[0];
-    
-    try {
-        // Create .mkw directory for extension metadata
-        const mkwPath = vscode.Uri.joinPath(rootUri, '.mkw');
-        await vscode.workspace.fs.createDirectory(mkwPath);
-        
-        // Create initial config file
-        const configContent = Buffer.from(`# Koban Workspace Configuration\nworkspace:\n  name: "${workspaceFolders[0].name}"\n  initialized: true\n  version: "0.1.0"\n`);
-        await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(mkwPath, 'config.yml'), configContent);
-
-        // Create a default "Getting Started" space with a sample task
-        const spaceName = 'Getting Started';
-        const spaceId = 'getting-started';
-        const spacePath = vscode.Uri.joinPath(rootUri, spaceId);
-        await vscode.workspace.fs.createDirectory(spacePath);
-
-        const metaContent = Buffer.from(`---\ntype: space\nid: ${spaceId}\nname: ${spaceName}\nstatus: active\ncreated: ${today}\n---\n\n# ${spaceName}\n\nWelcome to Koban! This is your first space.\n\n## Quick Start\n- Open the Kanban board by clicking the space or pressing \`CMD+Shift+K\`\n- Create tasks with \`CMD+Shift+T\`\n- Select code, right-click → \"Create Koban Task from Selection\"\n`);
-        await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(spacePath, '_meta.md'), metaContent);
-
-        const tasksPath = vscode.Uri.joinPath(spacePath, '.tasks');
-        const meetingsPath = vscode.Uri.joinPath(spacePath, '.meetings');
-        await vscode.workspace.fs.createDirectory(tasksPath);
-        await vscode.workspace.fs.createDirectory(meetingsPath);
-
-        // Create sample task
-        const taskId = `task-${Date.now()}`;
-        const sampleTask = Buffer.from(`---\nid: ${taskId}\nspace: ${spaceId}\nstatus: todo\npriority: medium\ncreated: ${today}\n---\n\n# My First Task\n\n## Description\nThis is a sample task. Edit it or create new ones!\n\n## Checklist\n- [ ] Explore the Kanban board\n- [ ] Create a new task\n- [ ] Move a task between columns\n\n## Links\n- Related tasks:\n- External resources:\n`);
-        await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(tasksPath, `${taskId}.md`), sampleTask);
-
-        // Add .mkw to .gitignore if it exists
-        await addToGitignore(rootPath, '.mkw/');
-
-        vscode.window.showInformationMessage('Koban workspace initialized! 🚀');
-        
-        await discoverSpaces();
-    } catch (error) {
-        vscode.window.showErrorMessage(`Failed to initialize workspace: ${error}`);
-    }
 }
 
 async function createNewSpace(): Promise<void> {
@@ -503,6 +447,7 @@ async function discoverSpaces(): Promise<void> {
     
     // Refresh the tree view to show discovered spaces
     spaceExplorerProvider.refresh();
+    updateStatusBar();
 }
 
 async function createTaskFromSelection(): Promise<void> {
@@ -599,6 +544,80 @@ async function archiveTask(node: any): Promise<void> {
     }
 }
 
+async function openDailyNote(): Promise<void> {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        vscode.window.showErrorMessage('No workspace folder open');
+        return;
+    }
+
+    const rootPath = workspaceFolders[0].uri.fsPath;
+    const dailyDir = path.join(rootPath, '.daily');
+    const today = new Date().toISOString().split('T')[0];
+    const filePath = path.join(dailyDir, `${today}.md`);
+
+    try {
+        const exists = await fileService.fileExists(filePath);
+        if (!exists) {
+            await fileService.createDirectory(dailyDir);
+            const content = `---\ndate: ${today}\n---\n\n# ${today}\n\n## Tasks\n- [ ] \n\n## Notes\n\n`;
+            await fileService.writeFile(filePath, content);
+        }
+        const doc = await vscode.workspace.openTextDocument(filePath);
+        await vscode.window.showTextDocument(doc);
+    } catch (error) {
+        vscode.window.showErrorMessage(`Failed to open daily note: ${error}`);
+    }
+}
+
+async function quickCapture(): Promise<void> {
+    const spaces = spaceService.getSpaces();
+    if (spaces.length === 0) {
+        vscode.window.showErrorMessage('No spaces found. Create a space first.');
+        return;
+    }
+
+    const taskTitle = await vscode.window.showInputBox({
+        prompt: 'Quick Capture — Enter task title',
+        placeHolder: 'What needs to be done?'
+    });
+
+    if (!taskTitle) {
+        return;
+    }
+
+    // Use default space or first active space
+    const defaultSpaceId = configService.getDefaultSpaceId();
+    let targetSpace = defaultSpaceId
+        ? spaces.find(s => s.id === defaultSpaceId)
+        : spaces.find(s => s.status === 'active');
+    if (!targetSpace) {
+        targetSpace = spaces[0];
+    }
+
+    try {
+        await taskService.createTask(targetSpace.id, taskTitle);
+        vscode.window.showInformationMessage(`Task captured in "${targetSpace.name}"`);
+        await refreshSpaces();
+    } catch (error) {
+        vscode.window.showErrorMessage(`Failed to capture task: ${error}`);
+    }
+}
+
+function updateStatusBar(): void {
+    const spaces = spaceService.getSpaces().filter(s => s.status === 'active');
+    if (spaces.length === 0) {
+        statusBarItem.hide();
+        return;
+    }
+
+    const totalTasks = spaces.reduce((sum, s) => sum + s.stats.totalTasks, 0);
+    const inProgress = spaces.reduce((sum, s) => sum + (s.stats.tasksByStatus['in-progress'] || 0), 0);
+    statusBarItem.text = `$(checklist) ${inProgress}/${totalTasks}`;
+    statusBarItem.tooltip = `Koban: ${inProgress} in progress, ${totalTasks} total tasks`;
+    statusBarItem.show();
+}
+
 function setupFileWatcher(context: vscode.ExtensionContext): void {
     let debounceTimer: NodeJS.Timeout | undefined;
     const debouncedRefresh = () => {
@@ -610,13 +629,11 @@ function setupFileWatcher(context: vscode.ExtensionContext): void {
         }, 500);
     };
 
-    // Use separate watchers for each detection method to avoid
-    // unreliable nested ** inside brace expansions
+    // Watch for space and content changes
     const watchPatterns = [
-        '**/_meta.md',       // Frontmatter-based space detection
-        '**/.tasks/**',      // Convention-based detection (tasks)
-        '**/.meetings/**',   // Convention-based detection (meetings)
-        '**/.mkw/**',        // Explicit detection (.yml and other files)
+        '**/_meta.md',
+        '**/.tasks/**',
+        '**/.meetings/**',
     ];
 
     for (const pattern of watchPatterns) {
@@ -627,7 +644,7 @@ function setupFileWatcher(context: vscode.ExtensionContext): void {
         context.subscriptions.push(watcher);
     }
 
-    // Re-discover spaces when workspace folders are added or removed
+    // Re-discover spaces when workspace folders change
     context.subscriptions.push(
         vscode.workspace.onDidChangeWorkspaceFolders(() => {
             debouncedRefresh();
@@ -640,22 +657,4 @@ function setupFileWatcher(context: vscode.ExtensionContext): void {
             refreshSpaces();
         })
     );
-}
-
-async function addToGitignore(rootPath: string, entry: string): Promise<void> {
-    const gitignorePath = path.join(rootPath, '.gitignore');
-    try {
-        const exists = await fileService.fileExists(gitignorePath);
-        if (exists) {
-            const content = await fileService.readFile(gitignorePath);
-            if (!content.includes(entry)) {
-                const newContent = content.endsWith('\n') ? `${content}${entry}\n` : `${content}\n${entry}\n`;
-                await fileService.writeFile(gitignorePath, newContent);
-            }
-        } else {
-            await fileService.writeFile(gitignorePath, `${entry}\n`);
-        }
-    } catch {
-        // Silently ignore if .gitignore cannot be updated
-    }
 }

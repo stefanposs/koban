@@ -5,7 +5,7 @@
 export type TaskStatus = 'todo' | 'in-progress' | 'review' | 'done' | 'blocked' | 'archived';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
 export type SpaceStatus = 'active' | 'paused' | 'archived';
-export type MeetingType = 'daily' | 'planning' | 'review' | 'retro' | 'kickoff' | 'stakeholder';
+export type MeetingType = string;
 
 export interface Space {
     id: string;
@@ -13,11 +13,8 @@ export interface Space {
     description?: string;
     rootPath: string;
     status: SpaceStatus;
-    color?: string;
-    owner?: string;
     createdAt: Date;
     updatedAt: Date;
-    detectionMethod: 'frontmatter' | 'convention' | 'explicit';
     stats: SpaceStats;
 }
 
@@ -43,19 +40,11 @@ export interface Task {
     updatedAt: Date;
     description?: string;
     checklist: ChecklistItem[];
-    links: Link[];
 }
 
 export interface ChecklistItem {
-    id: string;
     text: string;
     completed: boolean;
-}
-
-export interface Link {
-    type: 'task' | 'meeting' | 'external' | 'file';
-    target: string;
-    displayText?: string;
 }
 
 export interface Meeting {
@@ -78,7 +67,6 @@ export interface KanbanColumnConfig {
     name: string;
     status: TaskStatus;
     color?: string;
-    wipLimit?: number;
 }
 
 export interface KobanConfig {
@@ -103,10 +91,8 @@ export interface SpaceMeta {
     id: string;
     name: string;
     description?: string;
-    owner?: string;
     created?: string;
     status?: SpaceStatus;
-    color?: string;
 }
 
 export interface TaskMeta {

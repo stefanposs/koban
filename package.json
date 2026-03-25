@@ -63,12 +63,6 @@
         "icon": "$(refresh)"
       },
       {
-        "command": "koban.initializeWorkspace",
-        "title": "Initialize Workspace",
-        "category": "Koban",
-        "icon": "$(repo-create)"
-      },
-      {
         "command": "koban.refreshSpaces",
         "title": "Refresh",
         "category": "Koban",
@@ -119,6 +113,18 @@
         "title": "Archive Task",
         "category": "Koban",
         "icon": "$(archive)"
+      },
+      {
+        "command": "koban.dailyNote",
+        "title": "Daily Note",
+        "category": "Koban",
+        "icon": "$(note)"
+      },
+      {
+        "command": "koban.quickCapture",
+        "title": "Quick Capture",
+        "category": "Koban",
+        "icon": "$(zap)"
       }
     ],
     "viewsContainers": {
@@ -141,12 +147,7 @@
     "viewsWelcome": [
       {
         "view": "kobanSpaces",
-        "contents": "Welcome to Koban!\nOrganize your projects with Markdown-powered Kanban boards.\n[🚀 Initialize Koban Workspace](command:koban.initializeWorkspace)\n[+ Create New Space](command:koban.newSpace)"
-      },
-      {
-        "view": "kobanSpaces",
-        "contents": "No spaces found.\n[+ Create New Space](command:koban.newSpace)",
-        "when": "kobanInitialized && !workspaceHasKobanSpaces"
+        "contents": "No spaces found.\nCreate a _meta.md file in any folder to turn it into a Koban space.\n[+ Create New Space](command:koban.newSpace)"
       }
     ],
     "menus": {
@@ -218,28 +219,20 @@
       ],
       "commandPalette": [
         {
-          "command": "koban.initializeWorkspace",
-          "when": "!kobanInitialized"
+          "command": "koban.openTask",
+          "when": "false"
         },
         {
-          "command": "koban.newSpace",
-          "when": "kobanInitialized"
+          "command": "koban.deleteTask",
+          "when": "false"
         },
         {
-          "command": "koban.newTask",
-          "when": "kobanInitialized"
+          "command": "koban.moveTask",
+          "when": "false"
         },
         {
-          "command": "koban.newMeeting",
-          "when": "kobanInitialized"
-        },
-        {
-          "command": "koban.openKanban",
-          "when": "kobanInitialized"
-        },
-        {
-          "command": "koban.reindexSpaces",
-          "when": "kobanInitialized"
+          "command": "koban.archiveTask",
+          "when": "false"
         }
       ]
     },
@@ -247,14 +240,22 @@
       {
         "command": "koban.openKanban",
         "key": "ctrl+shift+k",
-        "mac": "cmd+shift+k",
-        "when": "kobanInitialized"
+        "mac": "cmd+shift+k"
       },
       {
         "command": "koban.newTask",
         "key": "ctrl+k ctrl+t",
-        "mac": "cmd+k cmd+t",
-        "when": "kobanInitialized"
+        "mac": "cmd+k cmd+t"
+      },
+      {
+        "command": "koban.dailyNote",
+        "key": "ctrl+shift+d",
+        "mac": "cmd+shift+d"
+      },
+      {
+        "command": "koban.quickCapture",
+        "key": "ctrl+shift+n",
+        "mac": "cmd+shift+n"
       }
     ],
     "configuration": {
@@ -341,7 +342,5 @@
     "typescript": "~5.7.0",
     "vitest": "^3.0.0"
   },
-  "dependencies": {
-    "yaml": "^2.3.4"
-  }
+  "dependencies": {}
 }

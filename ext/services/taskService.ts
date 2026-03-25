@@ -92,8 +92,7 @@ Add task description here...
             createdAt: new Date(),
             updatedAt: new Date(),
             description: '',
-            checklist: [],
-            links: []
+            checklist: []
         };
 
         this.tasks.set(taskId, task);
@@ -215,8 +214,7 @@ ${stringifyFrontmatter(frontmatter)}---
                                 createdAt: frontmatter.created ? new Date(frontmatter.created) : new Date(),
                                 updatedAt: new Date(),
                                 description: this.extractDescription(content),
-                                checklist: this.extractChecklist(content),
-                                links: []
+                                checklist: this.extractChecklist(content)
                             };
                             tasks.push(task);
                             this.tasks.set(task.id, task);
@@ -343,14 +341,13 @@ ${stringifyFrontmatter(frontmatter)}---
         return match ? match[1].trim() : '';
     }
 
-    private extractChecklist(content: string): Array<{ id: string; text: string; completed: boolean }> {
-        const checklist: Array<{ id: string; text: string; completed: boolean }> = [];
-        const regex = /^- \[(.)\] (.+)$/gm;
+    private extractChecklist(content: string): Array<{ text: string; completed: boolean }> {
+        const checklist: Array<{ text: string; completed: boolean }> = [];
+        const regex = /^- \[(.)\ ] (.+)$/gm;
         let match;
         
         while ((match = regex.exec(content)) !== null) {
             checklist.push({
-                id: `check-${checklist.length}`,
                 text: match[2].trim(),
                 completed: match[1] === 'x' || match[1] === 'X'
             });
