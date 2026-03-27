@@ -19,12 +19,15 @@ body {
 
 /* Header */
 .kanban-header {
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.kanban-header-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--vscode-panel-border);
+    padding-bottom: 12px;
 }
 
 .kanban-header-left {
@@ -44,15 +47,91 @@ body {
     color: var(--vscode-foreground);
 }
 
-.kanban-actions {
+/* Toolbar (action buttons) */
+.kanban-toolbar {
     display: flex;
     gap: 8px;
     align-items: center;
 }
 
-/* Buttons */
-.btn-primary,
-.btn-secondary {
+.toolbar-group {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.toolbar-separator {
+    width: 1px;
+    height: 22px;
+    background-color: var(--vscode-panel-border);
+    margin: 0 2px;
+}
+
+/* Action buttons */
+.btn-action {
+    padding: 6px 14px;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: var(--vscode-font-family);
+    background-color: var(--vscode-editor-background);
+    color: var(--vscode-foreground);
+    transition: background-color 0.15s, border-color 0.15s;
+    line-height: 1.4;
+}
+
+.btn-action:hover {
+    background-color: var(--vscode-list-hoverBackground);
+    border-color: var(--vscode-focusBorder);
+}
+
+.btn-action-primary {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border-color: transparent;
+    font-weight: 600;
+}
+
+.btn-action-primary:hover {
+    background-color: var(--vscode-button-hoverBackground);
+    border-color: transparent;
+}
+
+/* View Tabs (navigation) */
+.view-tabs {
+    display: flex;
+    gap: 0;
+    margin-top: 8px;
+}
+
+.view-tab {
+    padding: 10px 24px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: var(--vscode-font-family);
+    background: none;
+    color: var(--vscode-descriptionForeground);
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.view-tab:hover {
+    color: var(--vscode-foreground);
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.view-tab.active {
+    color: var(--vscode-foreground);
+    border-bottom-color: var(--vscode-focusBorder);
+    font-weight: 600;
+}
+
+/* (btn-primary/btn-secondary used in modals) */
+.btn-primary {
     padding: 8px 16px;
     border: none;
     border-radius: 4px;
@@ -60,24 +139,12 @@ body {
     font-size: 13px;
     font-weight: 500;
     transition: background-color 0.2s;
-}
-
-.btn-primary {
     background-color: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
 }
 
 .btn-primary:hover {
     background-color: var(--vscode-button-hoverBackground);
-}
-
-.btn-secondary {
-    background-color: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
-    color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
-}
-
-.btn-secondary:hover {
-    background-color: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-hoverBackground));
 }
 
 /* Kanban Board */
@@ -181,6 +248,18 @@ body {
     flex-shrink: 0;
 }
 
+/* Space Badge (colored initials) */
+.space-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: #fff;
+    white-space: nowrap;
+    flex-shrink: 0;
+    letter-spacing: 0.5px;
+}
+
 .task-priority {
     font-size: 11px;
     font-weight: 700;
@@ -189,24 +268,29 @@ body {
     text-transform: uppercase;
 }
 
-.priority-low {
-    background-color: #6b7280;
-    color: white;
+/* Priority Dot */
+.priority-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: inline-block;
 }
 
-.priority-medium {
-    background-color: #3b82f6;
-    color: white;
-}
-
-.priority-high {
-    background-color: #f59e0b;
-    color: white;
-}
-
-.priority-critical {
+.priority-dot.priority-urgent {
     background-color: #ef4444;
-    color: white;
+}
+
+.priority-dot.priority-high {
+    background-color: #f59e0b;
+}
+
+.priority-dot.priority-medium {
+    background-color: #eab308;
+}
+
+.priority-dot.priority-low {
+    background-color: #10b981;
 }
 
 .task-menu {
@@ -229,6 +313,17 @@ body {
     color: var(--vscode-foreground);
     margin-bottom: 8px;
     line-height: 1.4;
+}
+
+.task-description {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    margin-bottom: 8px;
+    line-height: 1.4;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
 }
 
 .task-tags {
@@ -319,7 +414,8 @@ body {
 }
 
 .modal input,
-.modal select {
+.modal select,
+.modal textarea {
     width: 100%;
     padding: 10px 12px;
     margin-bottom: 12px;
@@ -328,10 +424,17 @@ body {
     background-color: var(--vscode-input-background);
     color: var(--vscode-input-foreground);
     font-size: 13px;
+    font-family: var(--vscode-font-family);
+}
+
+.modal textarea {
+    resize: vertical;
+    min-height: 60px;
 }
 
 .modal input:focus,
-.modal select:focus {
+.modal select:focus,
+.modal textarea:focus {
     outline: none;
     border-color: var(--vscode-focusBorder);
 }
@@ -562,19 +665,21 @@ body {
 
 /* Icon button (compact) */
 .btn-icon {
-    padding: 6px 8px;
-    border: none;
-    border-radius: 4px;
+    padding: 6px 10px;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
     cursor: pointer;
     font-size: 14px;
-    background-color: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
-    color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
-    transition: background-color 0.2s;
+    font-family: var(--vscode-font-family);
+    background-color: var(--vscode-editor-background);
+    color: var(--vscode-foreground);
+    transition: background-color 0.15s, border-color 0.15s;
     line-height: 1;
 }
 
 .btn-icon:hover {
-    background-color: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-hoverBackground));
+    background-color: var(--vscode-list-hoverBackground);
+    border-color: var(--vscode-focusBorder);
 }
 
 /* Full-width button */
@@ -624,4 +729,167 @@ body {
 
 .quick-add-input:focus {
     border-color: var(--vscode-focusBorder);
+}
+
+/* View Panels */
+.view-panel {
+    display: none;
+}
+
+.view-panel.active {
+    display: block;
+}
+
+/* Meetings Timeline */
+.meetings-timeline {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.timeline-group {
+    margin-bottom: 20px;
+}
+
+.timeline-group-header {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--vscode-descriptionForeground);
+    padding: 8px 0;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.sticky-header {
+    position: sticky;
+    top: 0;
+    background-color: var(--vscode-editor-background);
+    z-index: 10;
+}
+
+.meeting-card {
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: box-shadow 0.2s;
+    border-left: 3px solid #8b5cf6;
+}
+
+.meeting-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.meeting-card.past {
+    opacity: 0.7;
+    border-left-color: var(--vscode-panel-border);
+}
+
+.meeting-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.meeting-card-date {
+    font-weight: 600;
+}
+
+.meeting-duration {
+    font-size: 11px;
+    padding: 1px 6px;
+    background-color: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+    border-radius: 3px;
+}
+
+.meeting-card-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--vscode-foreground);
+    margin-bottom: 4px;
+}
+
+.meeting-attendees {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    margin-top: 4px;
+}
+
+/* Past Meetings Section */
+.past-meetings-section {
+    margin-top: 24px;
+}
+
+.past-meetings-section > summary {
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+}
+
+.past-meetings-section > summary::-webkit-details-marker {
+    display: none;
+}
+
+.past-header {
+    color: var(--vscode-disabledForeground);
+}
+
+.past-header::before {
+    content: '▶ ';
+    font-size: 10px;
+}
+
+.past-meetings-section[open] > .past-header::before {
+    content: '▼ ';
+}
+
+.load-more-hint {
+    text-align: center;
+    padding: 12px;
+    font-size: 12px;
+    color: var(--vscode-disabledForeground);
+    font-style: italic;
+}
+
+/* Search Overlay */
+.search-overlay {
+    display: none;
+    position: fixed;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1500;
+    width: 90%;
+    max-width: 500px;
+}
+
+.search-overlay.show {
+    display: block;
+}
+
+.search-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid var(--vscode-focusBorder);
+    border-radius: 8px;
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    font-size: 14px;
+    font-family: var(--vscode-font-family);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.search-input:focus {
+    outline: none;
+}
+
+.search-input::placeholder {
+    color: var(--vscode-input-placeholderForeground);
 }

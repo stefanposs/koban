@@ -3,8 +3,10 @@
  */
 
 import * as vscode from 'vscode';
-import { Space, Task, Meeting, TaskStatus, ISpaceService, ITaskService, IFileService } from '../types';
+import * as path from 'path';
+import { Space, Task, Meeting, ISpaceService, ITaskService, IFileService } from '../types';
 import { META_FILE } from '../constants';
+import { isSystemFile } from '../utils/taskFileParser';
 
 export class SpaceExplorerProvider implements vscode.TreeDataProvider<SpaceTreeItem> {
     private _onDidChangeTreeData: vscode.EventEmitter<SpaceTreeItem | undefined | void> = new vscode.EventEmitter<SpaceTreeItem | undefined | void>();
@@ -55,7 +57,7 @@ export class SpaceExplorerProvider implements vscode.TreeDataProvider<SpaceTreeI
             // Notes category — loose .md files in space root (excluding _meta.md)
             try {
                 const files = await this.fileService.listFiles(space.rootPath);
-                const notes = files.filter(f => f.endsWith('.md') && f !== META_FILE);
+                const notes = files.filter(f => f.endsWith('.md') && f !== META_FILE && !isSystemFile(f));
                 if (notes.length > 0) {
                     items.push(new CategoryItem('Notes', 'notes', space, notes.length));
                 }
@@ -83,7 +85,7 @@ export class SpaceExplorerProvider implements vscode.TreeDataProvider<SpaceTreeI
             if (element.categoryType === 'notes') {
                 try {
                     const files = await this.fileService.listFiles(space.rootPath);
-                    const notes = files.filter(f => f.endsWith('.md') && f !== META_FILE);
+                    const notes = files.filter(f => f.endsWith('.md') && f !== META_FILE && !isSystemFile(f));
                     return notes.map(f => new NoteItem(f, space));
                 } catch {
                     return [];
@@ -265,9 +267,9 @@ export class MeetingItem extends vscode.TreeItem {
         this.iconPath = new vscode.ThemeIcon('calendar');
 
         this.command = {
-            command: 'vscode.open',
+            command: 'koban.openTask',
             title: 'Open Meeting',
-            arguments: [vscode.Uri.file(meeting.filePath)]
+            arguments: [{ task: meeting }]
         };
     }
 }

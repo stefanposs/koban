@@ -38,13 +38,13 @@ export function parseFrontmatter(content: string): ParsedFrontmatter {
     const frontmatterLines = lines.slice(1, frontmatterEnd);
     
     for (const line of frontmatterLines) {
+        // Skip lines that look like continuation/nested YAML
+        if (line.startsWith(' ') || line.trimStart().startsWith('-')) { continue; }
+
         const colonIndex = line.indexOf(':');
         if (colonIndex > 0) {
             const key = line.substring(0, colonIndex).trim();
             let value: any = line.substring(colonIndex + 1).trim();
-            
-            // Skip lines that look like continuation/nested YAML
-            if (key.startsWith(' ') || key.startsWith('-')) { continue; }
             
             // Try to parse as different types
             if (value === 'true') {
@@ -65,8 +65,8 @@ export function parseFrontmatter(content: string): ParsedFrontmatter {
                     // Keep as string if parsing fails
                 }
             } else if (value.startsWith('"') && value.endsWith('"')) {
-                // Remove quotes from string
-                value = value.slice(1, -1);
+                // Remove quotes and unescape backslash-escaped characters
+                value = value.slice(1, -1).replace(/\\"/g, '"');
             } else if (value.startsWith("'") && value.endsWith("'")) {
                 // Remove single quotes
                 value = value.slice(1, -1);

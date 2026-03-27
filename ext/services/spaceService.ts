@@ -6,7 +6,9 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { Space, SpaceMeta, SpaceStats, TaskStatus, IFileService, IConfigService, ISpaceService } from '../types';
 import { parseFrontmatter, updateFrontmatter } from '../utils/frontmatterParser';
-import { TASKS_DIR, MEETINGS_DIR, META_FILE } from '../constants';
+import { META_FILE } from '../constants';
+import { parseTasksFile, parseMeetingsFile, findYearFiles, getTasksFileName, getMeetingsFileName } from '../utils/taskFileParser';
+import { TASKS_DIR, MEETINGS_DIR } from '../constants';
 
 export class SpaceService implements ISpaceService {
     private spaces: Map<string, Space> = new Map();
@@ -68,7 +70,8 @@ export class SpaceService implements ISpaceService {
                     status: meta.status || 'active',
                     createdAt: meta.created ? new Date(meta.created) : new Date(),
                     updatedAt: new Date(),
-                    stats
+                    stats,
+                    color: (frontmatter as any).color,
                 };
 
                 target.set(spaceId, space);
@@ -79,9 +82,6 @@ export class SpaceService implements ISpaceService {
     }
 
     private async calculateSpaceStats(rootPath: string): Promise<SpaceStats> {
-        const tasksPath = path.join(rootPath, TASKS_DIR);
-        const meetingsPath = path.join(rootPath, MEETINGS_DIR);
-
         let totalTasks = 0;
         const tasksByStatus: Record<TaskStatus, number> = {
             'todo': 0,
@@ -94,50 +94,54 @@ export class SpaceService implements ISpaceService {
         let totalMeetings = 0;
         let upcomingMeetings = 0;
 
-        // Count tasks
+        // Read tasks from .tasks/ subdirectory
+        const tasksDir = path.join(rootPath, TASKS_DIR);
         try {
-            const allFiles = await this.fileService.listFiles(tasksPath);
-            const taskFiles = allFiles.filter(f => f.endsWith('.md'));
-            totalTasks = taskFiles.length;
-
-            for (const file of taskFiles) {
+            const files = await this.fileService.listFiles(tasksDir);
+            const taskYears = findYearFiles(files, 'tasks');
+            for (const year of taskYears) {
                 try {
-                    const content = await this.fileService.readFile(path.join(tasksPath, file));
-                    const frontmatter = parseFrontmatter(content);
-                    const status = frontmatter.status as TaskStatus;
-                    if (status && tasksByStatus[status] !== undefined) {
-                        tasksByStatus[status]++;
-                    } else {
-                        tasksByStatus['todo']++;
+                    const content = await this.fileService.readFile(path.join(tasksDir, getTasksFileName(year)));
+                    const parsed = parseTasksFile(content);
+                    for (const sec of parsed.tasks) {
+                        totalTasks++;
+                        const status = sec.status as TaskStatus;
+                        if (tasksByStatus[status] !== undefined) {
+                            tasksByStatus[status]++;
+                        } else {
+                            tasksByStatus['todo']++;
+                        }
                     }
-                } catch {
-                    tasksByStatus['todo']++;
+                } catch (err) {
+                    console.warn(`Koban: failed to parse tasks file for year ${year}:`, err);
                 }
             }
         } catch {
-            // Directory doesn't exist
+            // .tasks/ doesn't exist yet — not an error
         }
 
-        // Count meetings
+        // Read meetings from .meetings/ subdirectory
+        const meetingsDir = path.join(rootPath, MEETINGS_DIR);
         try {
-            const allMeetingFiles = await this.fileService.listFiles(meetingsPath);
-            const meetingFiles = allMeetingFiles.filter(f => f.endsWith('.md'));
-            totalMeetings = meetingFiles.length;
-
+            const files = await this.fileService.listFiles(meetingsDir);
+            const meetingYears = findYearFiles(files, 'meetings');
             const today = new Date().toISOString().split('T')[0];
-            for (const file of meetingFiles) {
+            for (const year of meetingYears) {
                 try {
-                    const content = await this.fileService.readFile(path.join(meetingsPath, file));
-                    const frontmatter = parseFrontmatter(content);
-                    if (frontmatter.date && String(frontmatter.date) >= today) {
-                        upcomingMeetings++;
+                    const content = await this.fileService.readFile(path.join(meetingsDir, getMeetingsFileName(year)));
+                    const parsed = parseMeetingsFile(content);
+                    for (const sec of parsed.meetings) {
+                        totalMeetings++;
+                        if (sec.date >= today) {
+                            upcomingMeetings++;
+                        }
                     }
-                } catch {
-                    // Ignore
+                } catch (err) {
+                    console.warn(`Koban: failed to parse meetings file for year ${year}:`, err);
                 }
             }
         } catch {
-            // Directory doesn't exist
+            // .meetings/ doesn't exist yet — not an error
         }
 
         const completedTasks = tasksByStatus['done'];

@@ -11,7 +11,8 @@ import { TaskService } from './services/taskService';
 import { FileService } from './services/fileService';
 import { ConfigService } from './services/configService';
 import { TaskStatus, Space } from './types';
-import { DAILY_DIR, META_FILE } from './constants';
+import { DAILY_DIR, TASKS_DIR, MEETINGS_DIR } from './constants';
+import { isSystemFile, getDailyFileName, findSectionLine } from './utils/taskFileParser';
 import * as path from 'path';
 
 let spaceService: SpaceService;
@@ -71,6 +72,12 @@ export async function activate(context: vscode.ExtensionContext) {
             await refreshSpaces();
         }),
 
+        // Lightweight refresh: sidebar tree only (no kanban panel re-read)
+        vscode.commands.registerCommand('koban.refreshExplorer', async () => {
+            await discoverSpaces();
+            spaceExplorerProvider.refresh();
+        }),
+
         // Open Task
         vscode.commands.registerCommand('koban.openTask', async (node) => {
             await openTask(node);
@@ -111,6 +118,16 @@ export async function activate(context: vscode.ExtensionContext) {
             await archiveTask(node);
         }),
 
+        // Move Task to another Space
+        vscode.commands.registerCommand('koban.moveTaskToSpace', async (node) => {
+            await moveTaskToSpace(node);
+        }),
+
+        // Move Meeting to another Space
+        vscode.commands.registerCommand('koban.moveMeetingToSpace', async (node) => {
+            await moveMeetingToSpace(node);
+        }),
+
         // Daily Note
         vscode.commands.registerCommand('koban.dailyNote', async () => {
             await openDailyNote();
@@ -146,6 +163,8 @@ let debounceTimer: NodeJS.Timeout | undefined;
 
 export function deactivate() {
     if (debounceTimer) { clearTimeout(debounceTimer); }
+    // Dispose the Kanban panel to avoid stale service references
+    if (KanbanPanel.currentPanel) { KanbanPanel.currentPanel.dispose(); }
     console.log('Koban extension is now deactivated');
 }
 
@@ -226,11 +245,23 @@ async function createNewSpace(): Promise<void> {
     }
     const rootPath = workspaceFolders[0].uri.fsPath;
     const spacePath = vscode.Uri.file(`${rootPath}/${spaceId}`);
+
+    // Prevent overwriting existing space
+    try {
+        await vscode.workspace.fs.stat(spacePath);
+        vscode.window.showErrorMessage(`A space with ID "${spaceId}" already exists.`);
+        return;
+    } catch {
+        // Directory doesn't exist — good, proceed
+    }
+
     const today = new Date().toISOString().split('T')[0];
 
     try {
-        // Create space directory
+        // Create space directory and hidden subdirs
         await vscode.workspace.fs.createDirectory(spacePath);
+        await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(spacePath, TASKS_DIR));
+        await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(spacePath, MEETINGS_DIR));
 
         // Read and process template
         const templatePath = path.join(extensionUri.fsPath, 'templates', `${selectedTemplate.id}.md`);
@@ -248,12 +279,6 @@ async function createNewSpace(): Promise<void> {
 
         const metaPath = vscode.Uri.joinPath(spacePath, '_meta.md');
         await vscode.workspace.fs.writeFile(metaPath, Buffer.from(metaContent));
-
-        // Create system directories
-        const tasksPath = vscode.Uri.joinPath(spacePath, '.tasks');
-        const meetingsPath = vscode.Uri.joinPath(spacePath, '.meetings');
-        await vscode.workspace.fs.createDirectory(tasksPath);
-        await vscode.workspace.fs.createDirectory(meetingsPath);
 
         // Create extra dirs for client-project template
         if (selectedTemplate.id === 'client-project') {
@@ -379,10 +404,18 @@ async function refreshSpaces(): Promise<void> {
 
     // If the Kanban board is open, refresh it with current space data
     if (KanbanPanel.currentPanel) {
-        const spaces = spaceService.getSpaces().filter(s => s.status === 'active');
-        const allSpaces = spaces.length > 0 ? spaces : spaceService.getSpaces();
+        const filter = KanbanPanel.currentPanel.spaceFilter;
+        const allKnown = spaceService.getSpaces();
+        // Respect the panel's space filter — only show spaces it was opened with
+        const filtered = allKnown.filter(s => filter.includes(s.id));
+        // Fall back to all active spaces if filtered set is empty (e.g., space was deleted)
+        const spacesToShow = filtered.length > 0
+            ? filtered
+            : allKnown.filter(s => s.status === 'active').length > 0
+                ? allKnown.filter(s => s.status === 'active')
+                : allKnown;
         const boards = await Promise.all(
-            allSpaces.map(async (space) => ({
+            spacesToShow.map(async (space) => ({
                 space,
                 tasks: await taskService.getTasksForSpace(space.id),
                 meetings: await taskService.getMeetingsForSpace(space.id)
@@ -395,7 +428,13 @@ async function refreshSpaces(): Promise<void> {
 async function openTask(node: any): Promise<void> {
     if (node && node.task && node.task.filePath) {
         const doc = await vscode.workspace.openTextDocument(node.task.filePath);
-        await vscode.window.showTextDocument(doc);
+        const editor = await vscode.window.showTextDocument(doc);
+        // Re-compute line number from disk to avoid stale cached values
+        const freshLine = findSectionLine(doc.getText(), node.task.id);
+        const line = Math.max(0, freshLine >= 0 ? freshLine : (node.task.lineNumber ?? 0));
+        const range = new vscode.Range(line, 0, line, 0);
+        editor.revealRange(range, vscode.TextEditorRevealType.AtTop);
+        editor.selection = new vscode.Selection(line, 0, line, 0);
     }
 }
 
@@ -492,15 +531,11 @@ async function createTaskFromSelection(): Promise<void> {
         const lineNumber = selection.start.line + 1;
         const codeRef = `[${relativePath}#L${lineNumber}](${relativePath}#L${lineNumber})`;
 
+        const description = `Source: ${codeRef}\n\n\`\`\`\`\n${selectedText}\n\`\`\`\``;
         const task = await taskService.createTask(space.id, taskTitle);
 
-        // Append code reference to the task file
-        const taskContent = await fileService.readFile(task.filePath);
-        const enhancedContent = taskContent.replace(
-            '## Links\n- Related tasks:\n- External resources:',
-            `## Links\n- Source: ${codeRef}\n\n## Code Reference\n\`\`\`\`\n${selectedText}\n\`\`\`\``
-        );
-        await fileService.writeFile(task.filePath, enhancedContent);
+        // Set description via taskService (serialized through write lock)
+        await taskService.updateTask(task.id, { description });
 
         vscode.window.showInformationMessage(`Task "${taskTitle}" created from selection!`);
         await refreshSpaces();
@@ -537,27 +572,105 @@ async function archiveTask(node: any): Promise<void> {
     }
 }
 
-async function openDailyNote(): Promise<void> {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders || workspaceFolders.length === 0) {
-        vscode.window.showErrorMessage('No workspace folder open');
+async function moveTaskToSpace(node: any): Promise<void> {
+    if (!node || !node.task) {
         return;
     }
 
-    const rootPath = workspaceFolders[0].uri.fsPath;
-    const dailyDir = path.join(rootPath, DAILY_DIR);
-    const today = new Date().toISOString().split('T')[0];
-    const filePath = path.join(dailyDir, `${today}.md`);
+    const spaces = spaceService.getSpaces().filter(s => s.id !== node.task.spaceId);
+    if (spaces.length === 0) {
+        vscode.window.showInformationMessage('No other spaces available.');
+        return;
+    }
+
+    const items = spaces.map(s => ({ label: s.name, description: s.id, space: s }));
+    const selected = await vscode.window.showQuickPick(items, {
+        placeHolder: 'Move task to which space?'
+    });
+    if (!selected) { return; }
 
     try {
+        await taskService.moveTaskToSpace(node.task.id, selected.space.id);
+        await refreshSpaces();
+        vscode.window.showInformationMessage(`Task "${node.task.title}" moved to "${selected.space.name}".`);
+    } catch (error) {
+        vscode.window.showErrorMessage(`Failed to move task: ${error instanceof Error ? error.message : String(error)}`);
+    }
+}
+
+async function moveMeetingToSpace(node: any): Promise<void> {
+    if (!node || !node.meeting) {
+        return;
+    }
+
+    const spaces = spaceService.getSpaces().filter(s => s.id !== node.meeting.spaceId);
+    if (spaces.length === 0) {
+        vscode.window.showInformationMessage('No other spaces available.');
+        return;
+    }
+
+    const items = spaces.map(s => ({ label: s.name, description: s.id, space: s }));
+    const selected = await vscode.window.showQuickPick(items, {
+        placeHolder: 'Move meeting to which space?'
+    });
+    if (!selected) { return; }
+
+    try {
+        await taskService.moveMeetingToSpace(node.meeting.id, selected.space.id);
+        await refreshSpaces();
+        vscode.window.showInformationMessage(`Meeting "${node.meeting.title}" moved to "${selected.space.name}".`);
+    } catch (error) {
+        vscode.window.showErrorMessage(`Failed to move meeting: ${error instanceof Error ? error.message : String(error)}`);
+    }
+}
+
+async function openDailyNote(): Promise<void> {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        vscode.window.showErrorMessage('No workspace folder open.');
+        return;
+    }
+
+    const dailyDir = path.join(workspaceFolders[0].uri.fsPath, DAILY_DIR);
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const year = now.getFullYear();
+    const filePath = path.join(dailyDir, getDailyFileName(year));
+    const heading = `## ${today}`;
+
+    try {
+        await fileService.createDirectory(dailyDir);
+
         const exists = await fileService.fileExists(filePath);
+        let content: string;
+
         if (!exists) {
-            await fileService.createDirectory(dailyDir);
-            const content = `---\ndate: ${today}\n---\n\n# ${today}\n\n## Tasks\n- [ ] \n\n## Notes\n\n`;
+            // Create year-file with frontmatter and today's entry
+            content = `---\ntype: daily\nyear: ${year}\n---\n\n${heading}\n\n- **Good:** \n- **Not good:** \n- **Change:** \n`;
             await fileService.writeFile(filePath, content);
+        } else {
+            content = await fileService.readFile(filePath);
+            if (!content.includes(heading)) {
+                // Prepend today's entry after frontmatter
+                const fmEnd = content.indexOf('\n---', 1);
+                const insertIdx = fmEnd >= 0 ? fmEnd + 4 : 0;
+                const before = content.slice(0, insertIdx);
+                const after = content.slice(insertIdx);
+                content = `${before}\n${heading}\n\n- **Good:** \n- **Not good:** \n- **Change:** \n${after}`;
+                await fileService.writeFile(filePath, content);
+            }
         }
+
+        // Open and jump to today's heading
         const doc = await vscode.workspace.openTextDocument(filePath);
-        await vscode.window.showTextDocument(doc);
+        const editor = await vscode.window.showTextDocument(doc);
+        const lines = doc.getText().split('\n');
+        const headingLineIdx = lines.findIndex(l => l.trim() === heading);
+        if (headingLineIdx >= 0) {
+            const range = new vscode.Range(headingLineIdx, 0, headingLineIdx, 0);
+            editor.revealRange(range, vscode.TextEditorRevealType.AtTop);
+            editor.selection = new vscode.Selection(headingLineIdx, 0, headingLineIdx, 0);
+        }
     } catch (error) {
         vscode.window.showErrorMessage(`Failed to open daily note: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -617,6 +730,12 @@ async function createNewNote(node?: any): Promise<void> {
     const filePath = path.join(space.rootPath, fileName);
 
     try {
+        const exists = await fileService.fileExists(filePath);
+        if (exists) {
+            const doc = await vscode.workspace.openTextDocument(filePath);
+            await vscode.window.showTextDocument(doc);
+            return;
+        }
         const today = new Date().toISOString().split('T')[0];
         const content = `---\ntitle: ${title}\ncreated: ${today}\n---\n\n# ${title}\n\n`;
         await fileService.writeFile(filePath, content);
@@ -629,7 +748,10 @@ async function createNewNote(node?: any): Promise<void> {
 }
 
 function setupFileWatcher(context: vscode.ExtensionContext): void {
+    const SELF_WRITE_SUPPRESS_MS = 1000;
     const debouncedRefresh = () => {
+        // Skip file-watcher refresh if the extension itself just wrote the file
+        if (Date.now() - taskService.lastSelfWriteAt < SELF_WRITE_SUPPRESS_MS) { return; }
         if (debounceTimer) {
             clearTimeout(debounceTimer);
         }
@@ -641,8 +763,11 @@ function setupFileWatcher(context: vscode.ExtensionContext): void {
     // Watch for space and content changes
     const watchPatterns = [
         '**/_meta.md',
-        '**/.tasks/**',
-        '**/.meetings/**',
+        '**/.tasks/tasks-*.md',
+        '**/.tasks/archived-tasks-*.md',
+        '**/.meetings/meetings-*.md',
+        '.daily/daily-*.md',
+        '.daily/archived-daily-*.md',
     ];
 
     for (const pattern of watchPatterns) {

@@ -3,7 +3,6 @@ import { TaskService } from '../../ext/services/taskService'
 import { FakeFileService } from '../fakes/fakeFileService'
 import { FakeConfigService } from '../fakes/fakeConfigService'
 import { FakeSpaceService } from '../fakes/fakeSpaceService'
-import { parseFrontmatter } from '../../ext/utils/frontmatterParser'
 
 describe('TaskService', () => {
     let fileService: FakeFileService
@@ -20,7 +19,7 @@ describe('TaskService', () => {
     })
 
     describe('createTask', () => {
-        it('creates a task file with correct frontmatter', async () => {
+        it('creates a task section in the year-file', async () => {
             const task = await taskService.createTask('project-a', 'My New Task')
 
             expect(task.title).toBe('My New Task')
@@ -31,28 +30,29 @@ describe('TaskService', () => {
 
             const fileContent = fileService.getFile(task.filePath)
             expect(fileContent).toBeDefined()
-            expect(fileContent).toContain('# My New Task')
-
-            const fm = parseFrontmatter(fileContent!)
-            expect(fm.status).toBe('todo')
+            expect(fileContent).toContain('## My New Task')
+            expect(fileContent).toContain(`id: ${task.id}`)
+            expect(fileContent).toContain('status: todo')
         })
 
         it('applies custom options', async () => {
             const task = await taskService.createTask('project-a', 'Urgent Fix', {
                 status: 'in-progress',
-                priority: 'critical',
+                priority: 'urgent',
                 tags: ['bug', 'hotfix'],
                 assignee: 'alice',
             })
 
             expect(task.status).toBe('in-progress')
-            expect(task.priority).toBe('critical')
+            expect(task.priority).toBe('urgent')
             expect(task.tags).toEqual(['bug', 'hotfix'])
             expect(task.assignee).toBe('alice')
 
-            const fm = parseFrontmatter(fileService.getFile(task.filePath)!)
-            expect(fm.status).toBe('in-progress')
-            expect(fm.priority).toBe('critical')
+            const content = fileService.getFile(task.filePath)!
+            expect(content).toContain('status: in-progress')
+            expect(content).toContain('priority: urgent')
+            expect(content).toContain('tags: bug, hotfix')
+            expect(content).toContain('assignee: alice')
         })
 
         it('throws when space does not exist', async () => {
@@ -65,6 +65,16 @@ describe('TaskService', () => {
             const t2 = await taskService.createTask('project-a', 'Task 2')
             expect(t1.id).not.toBe(t2.id)
         })
+
+        it('appends multiple tasks to the same year-file', async () => {
+            const t1 = await taskService.createTask('project-a', 'First')
+            const t2 = await taskService.createTask('project-a', 'Second')
+            expect(t1.filePath).toBe(t2.filePath)
+
+            const content = fileService.getFile(t1.filePath)!
+            expect(content).toContain('## First')
+            expect(content).toContain('## Second')
+        })
     })
 
     describe('getTasksForSpace', () => {
@@ -73,19 +83,21 @@ describe('TaskService', () => {
             expect(tasks).toEqual([])
         })
 
-        it('reads tasks from .tasks/ directory', async () => {
-            // Seed a task file
-            fileService.addFile('/workspace/project-a/.tasks/task-001.md', `---
+        it('reads tasks from tasks-YYYY.md file', async () => {
+            const year = new Date().getFullYear()
+            fileService.addFile(`/workspace/project-a/.tasks/tasks-${year}.md`, `---
+space: project-a
+year: ${year}
+type: tasks
+---
+
+## Seeded Task
 id: task-001
 status: todo
 priority: high
 created: 2025-01-01
----
 
-# Seeded Task
-
-## Description
-A seeded task.
+Description of the seeded task.
 `)
             const tasks = await taskService.getTasksForSpace('project-a')
             expect(tasks).toHaveLength(1)
@@ -95,31 +107,29 @@ A seeded task.
             expect(tasks[0].priority).toBe('high')
         })
 
-        it('skips non-md files', async () => {
-            fileService.addFile('/workspace/project-a/.tasks/.DS_Store', '')
-            fileService.addFile('/workspace/project-a/.tasks/task-001.md', `---
-id: task-001
-status: todo
+        it('excludes archived tasks by default', async () => {
+            const year = new Date().getFullYear()
+            fileService.addFile(`/workspace/project-a/.tasks/tasks-${year}.md`, `---
+space: project-a
+year: ${year}
+type: tasks
 ---
 
-# Task
-`)
-            const tasks = await taskService.getTasksForSpace('project-a')
-            expect(tasks).toHaveLength(1)
-        })
-
-        it('excludes archived tasks by default', async () => {
-            fileService.addFile('/workspace/project-a/.tasks/task-active.md', `---
+## Active Task
 id: task-active
 status: todo
----
-# Active`)
+`)
 
-            fileService.addFile('/workspace/project-a/.tasks/.archive/task-old.md', `---
+            fileService.addFile(`/workspace/project-a/.tasks/archived-tasks-${year}.md`, `---
+space: project-a
+year: ${year}
+type: archived-tasks
+---
+
+## Old Task
 id: task-old
 status: archived
----
-# Old`)
+`)
 
             const tasks = await taskService.getTasksForSpace('project-a', false)
             expect(tasks).toHaveLength(1)
@@ -127,32 +137,42 @@ status: archived
         })
 
         it('includes archived tasks when requested', async () => {
-            fileService.addFile('/workspace/project-a/.tasks/task-active.md', `---
+            const year = new Date().getFullYear()
+            fileService.addFile(`/workspace/project-a/.tasks/tasks-${year}.md`, `---
+space: project-a
+year: ${year}
+type: tasks
+---
+
+## Active Task
 id: task-active
 status: todo
----
-# Active`)
+`)
 
-            fileService.addFile('/workspace/project-a/.tasks/.archive/task-old.md', `---
+            fileService.addFile(`/workspace/project-a/.tasks/archived-tasks-${year}.md`, `---
+space: project-a
+year: ${year}
+type: archived-tasks
+---
+
+## Old Task
 id: task-old
 status: archived
----
-# Old`)
+`)
 
             const tasks = await taskService.getTasksForSpace('project-a', true)
             expect(tasks).toHaveLength(2)
         })
-
-
     })
 
     describe('updateTaskStatus', () => {
-        it('updates frontmatter status in file', async () => {
+        it('updates status metadata in the year-file', async () => {
             const task = await taskService.createTask('project-a', 'Status Task')
             await taskService.updateTaskStatus(task.id, 'in-progress')
 
-            const fm = parseFrontmatter(fileService.getFile(task.filePath)!)
-            expect(fm.status).toBe('in-progress')
+            const content = fileService.getFile(task.filePath)!
+            // Should contain updated status
+            expect(content).toContain('status: in-progress')
         })
 
         it('throws for unknown task ID', async () => {
@@ -162,20 +182,23 @@ status: archived
     })
 
     describe('archiveTask', () => {
-        it('moves file to .archive and updates status', async () => {
+        it('moves section to archived-tasks file and updates status', async () => {
             const task = await taskService.createTask('project-a', 'Archive Me')
             const origPath = task.filePath
 
             await taskService.archiveTask(task.id)
 
-            // Original file should be gone
-            expect(fileService.getFile(origPath)).toBeUndefined()
-            // Archived file should exist under .archive/
-            expect(task.filePath).toContain('.archive')
+            // Original file should no longer contain the task section
+            const origContent = fileService.getFile(origPath)!
+            expect(origContent).not.toContain('## Archive Me')
+
+            // Archived file should contain the task
+            expect(task.filePath).toContain('archived-tasks-')
             expect(task.status).toBe('archived')
 
-            const fm = parseFrontmatter(fileService.getFile(task.filePath)!)
-            expect(fm.status).toBe('archived')
+            const archiveContent = fileService.getFile(task.filePath)!
+            expect(archiveContent).toContain('## Archive Me')
+            expect(archiveContent).toContain('status: archived')
         })
 
         it('throws for unknown task ID', async () => {
@@ -185,11 +208,14 @@ status: archived
     })
 
     describe('deleteTask', () => {
-        it('removes file and map entry', async () => {
+        it('removes section from year-file', async () => {
             const task = await taskService.createTask('project-a', 'Delete Me')
+            const filePath = task.filePath
+
             await taskService.deleteTask(task.id)
 
-            expect(fileService.getFile(task.filePath)).toBeUndefined()
+            const content = fileService.getFile(filePath)!
+            expect(content).not.toContain('## Delete Me')
             // Trying to update a deleted task should fail
             await expect(taskService.updateTaskStatus(task.id, 'done'))
                 .rejects.toThrow()
@@ -202,22 +228,24 @@ status: archived
     })
 
     describe('createMeeting', () => {
-        it('creates a meeting file with correct frontmatter', async () => {
+        it('creates a meeting section in the year-file', async () => {
             const meeting = await taskService.createMeeting('project-a', 'Sprint Planning', '2025-02-01')
 
             expect(meeting.title).toBe('Sprint Planning')
             expect(meeting.spaceId).toBe('project-a')
 
-            const fm = parseFrontmatter(fileService.getFile(meeting.filePath)!)
-            expect(fm.type).toBe('meeting')
-            expect(fm.date).toBe('2025-02-01')
+            const content = fileService.getFile(meeting.filePath)!
+            expect(content).toContain('## Sprint Planning')
+            expect(content).toContain('date: 2025-02-01')
+            expect(content).toContain('### Agenda')
+            expect(content).toContain('### Notes')
+            expect(content).toContain('### Action Items')
+            expect(content).toContain('### Decisions')
         })
 
-        it('sanitizes meeting title in filename', async () => {
+        it('sanitizes meeting title in ID', async () => {
             const meeting = await taskService.createMeeting('project-a', 'Bad/Name<script>', '2025-02-01')
-            // Filename should only contain safe characters
-            const basename = meeting.filePath.split('/').pop()!
-            expect(basename).not.toMatch(/[<>/]/)
+            expect(meeting.id).not.toMatch(/[<>/]/)
         })
 
         it('throws for unknown space', async () => {
@@ -232,14 +260,24 @@ status: archived
             expect(meetings).toEqual([])
         })
 
-        it('reads meetings from .meetings/ directory', async () => {
-            fileService.addFile('/workspace/project-a/.meetings/2025-01-15-standup.md', `---
-type: meeting
-id: 2025-01-15-standup
-date: 2025-01-15
+        it('reads meetings from meetings-YYYY.md file', async () => {
+            fileService.addFile('/workspace/project-a/.meetings/meetings-2025.md', `---
+space: project-a
+year: 2025
+type: meetings
 ---
 
-# Standup
+## Standup
+id: 2025-01-15-standup
+date: 2025-01-15
+
+### Agenda
+
+### Notes
+
+### Action Items
+
+### Decisions
 `)
             const meetings = await taskService.getMeetingsForSpace('project-a')
             expect(meetings).toHaveLength(1)
@@ -265,45 +303,82 @@ date: 2025-01-15
         })
     })
 
-    describe('checklist extraction', () => {
-        it('parses mixed completed and incomplete items', async () => {
-            fileService.addFile('/workspace/project-a/.tasks/task-cl.md', `---
-id: task-cl
-status: in-progress
----
+    describe('moveTaskToSpace', () => {
+        beforeEach(() => {
+            spaceService.addSpace('project-b', '/workspace/project-b')
+        })
 
-# Checklist Task
+        it('moves a task from one space to another', async () => {
+            const task = await taskService.createTask('project-a', 'Movable Task')
+            const origPath = task.filePath
 
-## Checklist
-- [x] Setup database
-- [ ] Write migrations
-- [X] Configure CI
-- [ ] Deploy to staging
-`)
-            const tasks = await taskService.getTasksForSpace('project-a')
-            expect(tasks).toHaveLength(1)
-            expect(tasks[0].checklist).toHaveLength(4)
-            expect(tasks[0].checklist[0]).toEqual({ text: 'Setup database', completed: true })
-            expect(tasks[0].checklist[1]).toEqual({ text: 'Write migrations', completed: false })
-            expect(tasks[0].checklist[2]).toEqual({ text: 'Configure CI', completed: true })
-            expect(tasks[0].checklist[3]).toEqual({ text: 'Deploy to staging', completed: false })
+            const moved = await taskService.moveTaskToSpace(task.id, 'project-b')
+
+            expect(moved.spaceId).toBe('project-b')
+            expect(moved.filePath).toContain('/workspace/project-b/')
+            expect(moved.title).toBe('Movable Task')
+
+            // Original space file should no longer contain the task
+            const origContent = fileService.getFile(origPath)!
+            expect(origContent).not.toContain('## Movable Task')
+
+            // Target space file should contain the task
+            const targetContent = fileService.getFile(moved.filePath)!
+            expect(targetContent).toContain('## Movable Task')
+        })
+
+        it('throws when task is already in target space', async () => {
+            const task = await taskService.createTask('project-a', 'Stay Put')
+            await expect(taskService.moveTaskToSpace(task.id, 'project-a'))
+                .rejects.toThrow('already in the target space')
+        })
+
+        it('throws for unknown task', async () => {
+            await expect(taskService.moveTaskToSpace('ghost', 'project-b'))
+                .rejects.toThrow('Task ghost not found')
+        })
+
+        it('throws for unknown target space', async () => {
+            const task = await taskService.createTask('project-a', 'Nowhere')
+            await expect(taskService.moveTaskToSpace(task.id, 'nonexistent'))
+                .rejects.toThrow('Target space nonexistent not found')
         })
     })
 
-    describe('corrupted frontmatter handling', () => {
-        it('skips files with missing id', async () => {
-            fileService.addFile('/workspace/project-a/.tasks/bad.md', `---
-status: todo
----
-# No ID`)
-            const tasks = await taskService.getTasksForSpace('project-a')
-            expect(tasks).toHaveLength(0)
+    describe('moveMeetingToSpace', () => {
+        beforeEach(() => {
+            spaceService.addSpace('project-b', '/workspace/project-b')
         })
 
-        it('handles files without frontmatter', async () => {
-            fileService.addFile('/workspace/project-a/.tasks/plain.md', `# Just Markdown`)
-            const tasks = await taskService.getTasksForSpace('project-a')
-            expect(tasks).toHaveLength(0)
+        it('moves a meeting from one space to another', async () => {
+            const meeting = await taskService.createMeeting('project-a', 'Standup', '2025-03-15')
+            // Load meetings into cache
+            await taskService.getMeetingsForSpace('project-a')
+            const origPath = meeting.filePath
+
+            const moved = await taskService.moveMeetingToSpace(meeting.id, 'project-b')
+
+            expect(moved.spaceId).toBe('project-b')
+            expect(moved.filePath).toContain('/workspace/project-b/')
+
+            // Original space file should no longer contain the meeting
+            const origContent = fileService.getFile(origPath)!
+            expect(origContent).not.toContain('## Standup')
+
+            // Target space file should contain the meeting
+            const targetContent = fileService.getFile(moved.filePath)!
+            expect(targetContent).toContain('## Standup')
+        })
+
+        it('throws when meeting is already in target space', async () => {
+            const meeting = await taskService.createMeeting('project-a', 'Stay', '2025-03-15')
+            await expect(taskService.moveMeetingToSpace(meeting.id, 'project-a'))
+                .rejects.toThrow('already in the target space')
+        })
+
+        it('throws for unknown meeting', async () => {
+            await expect(taskService.moveMeetingToSpace('ghost', 'project-b'))
+                .rejects.toThrow('Meeting ghost not found')
         })
     })
 })

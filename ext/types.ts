@@ -3,7 +3,7 @@
  */
 
 export type TaskStatus = 'todo' | 'in-progress' | 'review' | 'done' | 'blocked' | 'archived';
-export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type SpaceStatus = 'active' | 'paused' | 'archived';
 export type MeetingType = string;
 
@@ -16,6 +16,7 @@ export interface Space {
     createdAt: Date;
     updatedAt: Date;
     stats: SpaceStats;
+    color?: string;
 }
 
 export interface SpaceStats {
@@ -39,12 +40,8 @@ export interface Task {
     createdAt: Date;
     updatedAt: Date;
     description?: string;
-    checklist: ChecklistItem[];
-}
-
-export interface ChecklistItem {
-    text: string;
-    completed: boolean;
+    /** 0-based line number of the ## heading inside the year-file */
+    lineNumber?: number;
 }
 
 export interface Meeting {
@@ -52,14 +49,18 @@ export interface Meeting {
     spaceId: string;
     title: string;
     date: Date;
+    time?: string;
     duration?: number;
     attendees?: string[];
+    tags?: string[];
     agenda?: string;
     notes?: string;
     filePath: string;
     createdAt: Date;
     updatedAt: Date;
     meetingType?: MeetingType;
+    /** 0-based line number of the ## heading inside the year-file */
+    lineNumber?: number;
 }
 
 export interface KanbanColumnConfig {
@@ -93,26 +94,7 @@ export interface SpaceMeta {
     description?: string;
     created?: string;
     status?: SpaceStatus;
-}
-
-export interface TaskMeta {
-    id: string;
-    status: TaskStatus;
-    priority?: TaskPriority;
-    assignee?: string;
-    due?: string;
-    tags?: string[];
-    created?: string;
-}
-
-export interface MeetingMeta {
-    type: 'meeting';
-    id: string;
-    meeting_type?: MeetingType;
-    date: string;
-    start_time?: string;
-    duration?: string;
-    participants?: string[];
+    color?: string;
 }
 
 // =====================================================
@@ -154,7 +136,11 @@ export interface ITaskService {
     getTasksForSpace(spaceId: string, includeArchived?: boolean): Promise<Task[]>;
     getMeetingsForSpace(spaceId: string): Promise<Meeting[]>;
     updateTaskStatus(taskId: string, newStatus: TaskStatus): Promise<void>;
+    updateTask(taskId: string, updates: { title?: string; priority?: string; due?: string; status?: string; description?: string }): Promise<void>;
+    updateMeeting(meetingId: string, updates: { title?: string; date?: string; time?: string }): Promise<void>;
     deleteTask(taskId: string): Promise<void>;
     archiveTask(taskId: string): Promise<void>;
-    createMeeting(spaceId: string, title: string, date: string): Promise<Meeting>;
+    moveTaskToSpace(taskId: string, targetSpaceId: string): Promise<Task>;
+    moveMeetingToSpace(meetingId: string, targetSpaceId: string): Promise<Meeting>;
+    createMeeting(spaceId: string, title: string, date: string, options?: { time?: string; duration?: number; attendees?: string[]; tags?: string[]; meetingType?: MeetingType }): Promise<Meeting>;
 }

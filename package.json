@@ -2,7 +2,7 @@
   "name": "koban",
   "displayName": "Koban - Markdown Kanban Workspace",
   "description": "A VS Code extension that bridges folder-based project structures with visual Kanban boards using Markdown as the single source of truth",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "publisher": "stefanposs",
   "license": "MIT",
@@ -120,6 +120,18 @@
         "icon": "$(archive)"
       },
       {
+        "command": "koban.moveTaskToSpace",
+        "title": "Move Task to Space…",
+        "category": "Koban",
+        "icon": "$(move)"
+      },
+      {
+        "command": "koban.moveMeetingToSpace",
+        "title": "Move Meeting to Space…",
+        "category": "Koban",
+        "icon": "$(move)"
+      },
+      {
         "command": "koban.dailyNote",
         "title": "Daily Note",
         "category": "Koban",
@@ -228,6 +240,16 @@
           "command": "koban.archiveTask",
           "when": "view == kobanSpaces && viewItem == task",
           "group": "task@1"
+        },
+        {
+          "command": "koban.moveTaskToSpace",
+          "when": "view == kobanSpaces && viewItem == task",
+          "group": "task@2"
+        },
+        {
+          "command": "koban.moveMeetingToSpace",
+          "when": "view == kobanSpaces && viewItem == meeting",
+          "group": "meeting@1"
         }
       ],
       "editor/context": [
@@ -252,6 +274,14 @@
         },
         {
           "command": "koban.archiveTask",
+          "when": "false"
+        },
+        {
+          "command": "koban.moveTaskToSpace",
+          "when": "false"
+        },
+        {
+          "command": "koban.moveMeetingToSpace",
           "when": "false"
         }
       ]

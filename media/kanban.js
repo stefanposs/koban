@@ -14,6 +14,8 @@
         initializeDragAndDrop();
         initializeEventListeners();
         initializeKeyboardNavigation();
+        initializeViewToggle();
+        initializeSearchInput();
         refreshTaskCardList();
     });
 
@@ -69,9 +71,14 @@
                     e.preventDefault();
                     archiveSelectedTask();
                     break;
+                case 'e': // Edit selected task
+                    e.preventDefault();
+                    editSelectedTask();
+                    break;
                 case 'Escape':
                     clearSelection();
                     closeAllModals();
+                    closeSearch();
                     break;
                 case 'Delete':
                 case 'Backspace':
@@ -80,6 +87,96 @@
                         deleteSelectedTask();
                     }
                     break;
+                case '/':
+                    e.preventDefault();
+                    toggleSearch();
+                    break;
+            }
+        });
+    }
+
+    // =====================================================
+    // View Toggle (Tasks / Meetings)
+    // =====================================================
+
+    function initializeViewToggle() {
+        document.querySelectorAll('.view-tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.getAttribute('data-view');
+                document.querySelectorAll('.view-tab').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+                const panel = document.getElementById('view-' + view);
+                if (panel) { panel.classList.add('active'); }
+            });
+        });
+
+        // Meeting card clicks → open meeting in editor
+        document.querySelectorAll('.meeting-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const meetingId = card.getAttribute('data-meeting-id');
+                if (meetingId) {
+                    vscode.postMessage({ type: 'openTask', taskId: meetingId });
+                }
+            });
+            card.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                const meetingId = card.getAttribute('data-meeting-id');
+                if (meetingId) {
+                    showMeetingContextMenu(e, meetingId, card.getAttribute('data-space-id'));
+                }
+            });
+        });
+    }
+
+    // =====================================================
+    // Search
+    // =====================================================
+
+    function toggleSearch() {
+        const overlay = document.getElementById('search-overlay');
+        if (!overlay) { return; }
+        if (overlay.classList.contains('show')) {
+            closeSearch();
+        } else {
+            overlay.classList.add('show');
+            const input = document.getElementById('search-input');
+            if (input) { input.value = ''; input.focus(); }
+        }
+    }
+
+    function closeSearch() {
+        const overlay = document.getElementById('search-overlay');
+        if (overlay) {
+            overlay.classList.remove('show');
+            // Reset visibility
+            document.querySelectorAll('.task-card, .meeting-card').forEach(el => {
+                el.style.display = '';
+            });
+        }
+    }
+
+    function initializeSearchInput() {
+        const input = document.getElementById('search-input');
+        if (!input) { return; }
+        input.addEventListener('input', () => {
+            const q = input.value.toLowerCase().trim();
+            // Filter task cards
+            document.querySelectorAll('.task-card').forEach(card => {
+                const title = (card.querySelector('.task-title')?.textContent || '').toLowerCase();
+                const tags = (card.querySelector('.task-tags')?.textContent || '').toLowerCase();
+                card.style.display = (!q || title.includes(q) || tags.includes(q)) ? '' : 'none';
+            });
+            // Filter meeting cards
+            document.querySelectorAll('.meeting-card').forEach(card => {
+                const title = (card.querySelector('.meeting-card-title')?.textContent || '').toLowerCase();
+                const attendees = (card.querySelector('.meeting-attendees')?.textContent || '').toLowerCase();
+                card.style.display = (!q || title.includes(q) || attendees.includes(q)) ? '' : 'none';
+            });
+        });
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeSearch();
             }
         });
     }
@@ -142,6 +239,15 @@
             const taskId = allTaskCards[selectedTaskIndex].getAttribute('data-task-id');
             if (taskId) {
                 vscode.postMessage({ type: 'archiveTask', taskId });
+            }
+        }
+    }
+
+    function editSelectedTask() {
+        if (selectedTaskIndex >= 0 && selectedTaskIndex < allTaskCards.length) {
+            const taskId = allTaskCards[selectedTaskIndex].getAttribute('data-task-id');
+            if (taskId) {
+                showEditTaskModal(taskId);
             }
         }
     }
@@ -225,6 +331,34 @@
         const createMeetingBtn = document.getElementById('btn-create-meeting');
         if (createMeetingBtn) {
             createMeetingBtn.addEventListener('click', createNewMeeting);
+        }
+
+        // Save edit task button
+        const saveTaskBtn = document.getElementById('btn-save-task');
+        if (saveTaskBtn) {
+            saveTaskBtn.addEventListener('click', saveEditTask);
+        }
+
+        // Save edit meeting button
+        const saveMeetingBtn = document.getElementById('btn-save-meeting');
+        if (saveMeetingBtn) {
+            saveMeetingBtn.addEventListener('click', saveEditMeeting);
+        }
+
+        // Enter key in edit task title
+        const editTaskTitle = document.getElementById('edit-task-title');
+        if (editTaskTitle) {
+            editTaskTitle.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') { saveEditTask(); }
+            });
+        }
+
+        // Enter key in edit meeting title
+        const editMeetingTitle = document.getElementById('edit-meeting-title');
+        if (editMeetingTitle) {
+            editMeetingTitle.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') { saveEditMeeting(); }
+            });
         }
 
         // Task menu buttons
@@ -422,14 +556,18 @@
     function createNewMeeting() {
         const titleInput = document.getElementById('new-meeting-title');
         const dateInput = document.getElementById('new-meeting-date');
+        const timeInput = document.getElementById('new-meeting-time');
         const spaceSelect = document.getElementById('new-meeting-space');
         
         const title = titleInput ? titleInput.value.trim() : '';
         const date = dateInput ? dateInput.value : new Date().toISOString().split('T')[0];
+        const time = timeInput ? timeInput.value : '';
         const spaceId = spaceSelect ? spaceSelect.value : (window.kanbanData.boards && window.kanbanData.boards[0] ? window.kanbanData.boards[0].space.id : undefined);
         
         if (title) {
-            vscode.postMessage({ type: 'createMeeting', title, date, spaceId });
+            const msg = { type: 'createMeeting', title, date, spaceId };
+            if (time) { msg.time = time; }
+            vscode.postMessage(msg);
             hideModal('add-meeting-modal');
         }
     }
@@ -438,6 +576,9 @@
         closeContextMenu();
 
         const columns = window.kanbanData.columns;
+        const spaces = window.kanbanData.spaces || [];
+        const taskCard = e.target.closest('.task-card');
+        const currentSpaceId = taskCard ? taskCard.getAttribute('data-space-id') : null;
         const menu = document.createElement('div');
         menu.className = 'context-menu';
 
@@ -455,6 +596,7 @@
         }
 
         addMenuItem('📄 Open', 'open');
+        addMenuItem('✏️ Edit', 'edit');
         addMenuItem('📦 Archive', 'archive');
         addMenuItem('🗑️ Delete', 'delete');
 
@@ -466,15 +608,40 @@
             addMenuItem('→ ' + col.name, 'move', { status: col.status });
         });
 
+        // Move to Space (only if multiple spaces)
+        if (spaces.length > 1) {
+            const spaceDivider = document.createElement('div');
+            spaceDivider.className = 'context-menu-divider';
+            menu.appendChild(spaceDivider);
+
+            spaces.filter(s => s.id !== currentSpaceId).forEach(s => {
+                addMenuItem('📁 → ' + s.name, 'moveToSpace', { targetSpaceId: s.id });
+            });
+        }
+
         menu.style.left = e.clientX + 'px';
         menu.style.top = e.clientY + 'px';
         document.body.appendChild(menu);
 
+        // Clamp to viewport bounds
+        const rect = menu.getBoundingClientRect();
+        if (rect.right > window.innerWidth) {
+            menu.style.left = Math.max(0, window.innerWidth - rect.width) + 'px';
+        }
+        if (rect.bottom > window.innerHeight) {
+            menu.style.top = Math.max(0, window.innerHeight - rect.height) + 'px';
+        }
+
         menu.querySelectorAll('.context-menu-item').forEach(item => {
-            item.addEventListener('click', () => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
                 const action = item.getAttribute('data-action');
                 if (action === 'open') {
                     vscode.postMessage({ type: 'openTask', taskId });
+                } else if (action === 'edit') {
+                    closeContextMenu();
+                    showEditTaskModal(taskId);
+                    return;
                 } else if (action === 'archive') {
                     vscode.postMessage({ type: 'archiveTask', taskId });
                 } else if (action === 'delete') {
@@ -482,6 +649,9 @@
                 } else if (action === 'move') {
                     const newStatus = item.getAttribute('data-status');
                     vscode.postMessage({ type: 'moveTask', taskId, newStatus });
+                } else if (action === 'moveToSpace') {
+                    const targetSpaceId = item.getAttribute('data-target-space-id');
+                    vscode.postMessage({ type: 'moveTaskToSpace', taskId, targetSpaceId });
                 }
                 closeContextMenu();
             });
@@ -491,6 +661,182 @@
     function closeContextMenu() {
         const existing = document.querySelector('.context-menu');
         if (existing) { existing.remove(); }
+    }
+
+    function showMeetingContextMenu(e, meetingId, currentSpaceId) {
+        closeContextMenu();
+
+        const spaces = window.kanbanData.spaces || [];
+        const menu = document.createElement('div');
+        menu.className = 'context-menu';
+
+        function addMenuItem(label, action, attrs) {
+            const item = document.createElement('div');
+            item.className = 'context-menu-item';
+            item.textContent = label;
+            item.dataset.action = action;
+            if (attrs) {
+                for (const [k, v] of Object.entries(attrs)) {
+                    item.dataset[k] = v;
+                }
+            }
+            menu.appendChild(item);
+        }
+
+        addMenuItem('📄 Open', 'open');
+        addMenuItem('✏️ Edit', 'edit');
+
+        // Move to Space (only if multiple spaces)
+        if (spaces.length > 1) {
+            const divider = document.createElement('div');
+            divider.className = 'context-menu-divider';
+            menu.appendChild(divider);
+
+            spaces.filter(s => s.id !== currentSpaceId).forEach(s => {
+                addMenuItem('📁 → ' + s.name, 'moveToSpace', { targetSpaceId: s.id });
+            });
+        }
+
+        menu.style.left = e.clientX + 'px';
+        menu.style.top = e.clientY + 'px';
+        document.body.appendChild(menu);
+
+        // Clamp to viewport bounds
+        const mRect = menu.getBoundingClientRect();
+        if (mRect.right > window.innerWidth) {
+            menu.style.left = Math.max(0, window.innerWidth - mRect.width) + 'px';
+        }
+        if (mRect.bottom > window.innerHeight) {
+            menu.style.top = Math.max(0, window.innerHeight - mRect.height) + 'px';
+        }
+
+        menu.querySelectorAll('.context-menu-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const action = item.getAttribute('data-action');
+                if (action === 'open') {
+                    vscode.postMessage({ type: 'openTask', taskId: meetingId });
+                } else if (action === 'edit') {
+                    closeContextMenu();
+                    showEditMeetingModal(meetingId);
+                    return;
+                } else if (action === 'moveToSpace') {
+                    const targetSpaceId = item.getAttribute('data-target-space-id');
+                    vscode.postMessage({ type: 'moveMeetingToSpace', meetingId, targetSpaceId });
+                }
+                closeContextMenu();
+            });
+        });
+    }
+
+    // =====================================================
+    // Edit Task / Meeting Modals
+    // =====================================================
+
+    function findTaskData(taskId) {
+        const data = window.kanbanData;
+        if (!data || !data.boards) { return null; }
+        for (const board of data.boards) {
+            const task = (board.tasks || []).find(t => t.id === taskId);
+            if (task) { return { ...task, spaceId: board.space.id }; }
+        }
+        return null;
+    }
+
+    function findMeetingData(meetingId) {
+        const data = window.kanbanData;
+        if (!data || !data.boards) { return null; }
+        for (const board of data.boards) {
+            const meeting = (board.meetings || []).find(m => m.id === meetingId);
+            if (meeting) { return { ...meeting, spaceId: board.space.id }; }
+        }
+        return null;
+    }
+
+    function showEditTaskModal(taskId) {
+        const task = findTaskData(taskId);
+        if (!task) { return; }
+
+        const modal = document.getElementById('edit-task-modal');
+        if (!modal) { return; }
+
+        document.getElementById('edit-task-id').value = taskId;
+        document.getElementById('edit-task-title').value = task.title || '';
+        const prioritySelect = document.getElementById('edit-task-priority');
+        if (prioritySelect) { prioritySelect.value = task.priority || 'medium'; }
+        const dueInput = document.getElementById('edit-task-due');
+        if (dueInput) {
+            dueInput.value = task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '';
+        }
+        const statusSelect = document.getElementById('edit-task-status');
+        if (statusSelect) { statusSelect.value = task.status || 'todo'; }
+        const descInput = document.getElementById('edit-task-description');
+        if (descInput) { descInput.value = task.description || ''; }
+        const spaceSelect = document.getElementById('edit-task-space');
+        if (spaceSelect) { spaceSelect.value = task.spaceId || ''; }
+
+        modal.classList.add('show');
+        document.getElementById('edit-task-title').focus();
+    }
+
+    function showEditMeetingModal(meetingId) {
+        const meeting = findMeetingData(meetingId);
+        if (!meeting) { return; }
+
+        const modal = document.getElementById('edit-meeting-modal');
+        if (!modal) { return; }
+
+        document.getElementById('edit-meeting-id').value = meetingId;
+        document.getElementById('edit-meeting-title').value = meeting.title || '';
+        const dateInput = document.getElementById('edit-meeting-date');
+        if (dateInput) {
+            dateInput.value = meeting.date ? new Date(meeting.date).toISOString().split('T')[0] : '';
+        }
+        const timeInput = document.getElementById('edit-meeting-time');
+        if (timeInput) { timeInput.value = meeting.time || ''; }
+        const spaceSelect = document.getElementById('edit-meeting-space');
+        if (spaceSelect) { spaceSelect.value = meeting.spaceId || ''; }
+
+        modal.classList.add('show');
+        document.getElementById('edit-meeting-title').focus();
+    }
+
+    function saveEditTask() {
+        const taskId = document.getElementById('edit-task-id').value;
+        const title = document.getElementById('edit-task-title').value.trim();
+        if (!taskId || !title) { return; }
+
+        const updates = {
+            title: title,
+            priority: document.getElementById('edit-task-priority')?.value,
+            due: document.getElementById('edit-task-due')?.value || '',
+            status: document.getElementById('edit-task-status')?.value,
+            description: document.getElementById('edit-task-description')?.value || '',
+        };
+
+        const spaceSelect = document.getElementById('edit-task-space');
+        if (spaceSelect) { updates.targetSpaceId = spaceSelect.value; }
+
+        vscode.postMessage({ type: 'updateTask', taskId, updates });
+        hideModal('edit-task-modal');
+    }
+
+    function saveEditMeeting() {
+        const meetingId = document.getElementById('edit-meeting-id').value;
+        const title = document.getElementById('edit-meeting-title').value.trim();
+        if (!meetingId || !title) { return; }
+
+        const updates = {
+            title: title,
+            date: document.getElementById('edit-meeting-date')?.value || '',
+            time: document.getElementById('edit-meeting-time')?.value || '',
+        };
+
+        const spaceSelect = document.getElementById('edit-meeting-space');
+        if (spaceSelect) { updates.targetSpaceId = spaceSelect.value; }
+
+        vscode.postMessage({ type: 'updateMeeting', meetingId, updates });
+        hideModal('edit-meeting-modal');
     }
 
     // =====================================================
