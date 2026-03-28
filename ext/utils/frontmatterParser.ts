@@ -51,7 +51,7 @@ export function parseFrontmatter(content: string): ParsedFrontmatter {
                 value = true;
             } else if (value === 'false') {
                 value = false;
-            } else if (!isNaN(Number(value)) && value !== '') {
+            } else if (key === 'year' && !isNaN(Number(value)) && value !== '') {
                 value = Number(value);
             } else if (value.startsWith('[') && value.endsWith(']')) {
                 // Parse array — strip quotes from individual items

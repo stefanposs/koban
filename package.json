@@ -2,7 +2,7 @@
   "name": "koban",
   "displayName": "Koban - Markdown Kanban Workspace",
   "description": "A VS Code extension that bridges folder-based project structures with visual Kanban boards using Markdown as the single source of truth",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "publisher": "stefanposs",
   "license": "MIT",

@@ -74,7 +74,11 @@ export class SpaceService implements ISpaceService {
                     color: (frontmatter as any).color,
                 };
 
-                target.set(spaceId, space);
+                if (target.has(spaceId)) {
+                    console.warn(`Koban: duplicate space ID "${spaceId}" — skipping ${filePath}`);
+                } else {
+                    target.set(spaceId, space);
+                }
             }
         } catch (error) {
             console.error(`Error processing meta file ${filePath}:`, error);

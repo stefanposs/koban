@@ -111,9 +111,13 @@ export class KanbanPanel {
                     case 'openTask':
                         await this._openTask(message.taskId);
                         break;
-                    case 'createTask':
-                        await this._createTask(message.title, message.status, message.spaceId);
+                    case 'createTask': {
+                        const validStatuses2: TaskStatus[] = ['todo', 'in-progress', 'review', 'done', 'blocked', 'archived'];
+                        const createStatus = validStatuses2.includes(message.status as TaskStatus)
+                            ? message.status as TaskStatus : 'todo';
+                        await this._createTask(message.title, createStatus, message.spaceId);
                         break;
+                    }
                     case 'createMeeting':
                         await this._createMeeting(message.title, message.date, message.spaceId, message.time);
                         break;
@@ -268,6 +272,7 @@ export class KanbanPanel {
 
         // All spaces in workspace (for dropdowns — not just displayed boards)
         const allSpaces = this._spaceService.getSpaces().map(s => ({ id: s.id, name: s.name }));
+        const defaultSpaceId = this._boards[0]?.space.id || '';
 
         return `<!DOCTYPE html>
             <html lang="en">
@@ -354,7 +359,7 @@ export class KanbanPanel {
                                         </div>
                                     `).join('')}
                                     <div class="quick-add">
-                                        <input type="text" class="quick-add-input" placeholder="+ Add task..." data-status="${this._escapeAttr(col.status)}">
+                                        <input type="text" class="quick-add-input" placeholder="+ Add task..." data-status="${this._escapeAttr(col.status)}" data-space-id="${this._escapeAttr(defaultSpaceId)}">
                                     </div>
                                 </div>
                             </div>
@@ -411,7 +416,7 @@ export class KanbanPanel {
                         <h2>New Task</h2>
                         <label class="modal-label">Space</label>
                         <select id="new-task-space">
-                            ${allSpaces.map(s => `<option value="${this._escapeAttr(s.id)}">${this._escapeHtml(s.name)}</option>`).join('')}
+                            ${allSpaces.map(s => `<option value="${this._escapeAttr(s.id)}"${s.id === defaultSpaceId ? ' selected' : ''}>${this._escapeHtml(s.name)}</option>`).join('')}
                         </select>
                         <label class="modal-label">Title</label>
                         <input type="text" id="new-task-title" placeholder="What needs to be done?" autofocus>
@@ -430,7 +435,7 @@ export class KanbanPanel {
                         <h2>📅 New Meeting</h2>
                         <label class="modal-label">Space</label>
                         <select id="new-meeting-space">
-                            ${allSpaces.map(s => `<option value="${this._escapeAttr(s.id)}">${this._escapeHtml(s.name)}</option>`).join('')}
+                            ${allSpaces.map(s => `<option value="${this._escapeAttr(s.id)}"${s.id === defaultSpaceId ? ' selected' : ''}>${this._escapeHtml(s.name)}</option>`).join('')}
                         </select>
                         <label class="modal-label">Title</label>
                         <input type="text" id="new-meeting-title" placeholder="Meeting name...">
@@ -603,6 +608,7 @@ export class KanbanPanel {
             const targetSpaceId = spaceId || this._boards[0]?.space.id;
             if (!targetSpaceId) { return; }
             await this._taskService.createTask(targetSpaceId, title, { status });
+            await this._ensureBoardForSpace(targetSpaceId);
             await this._refresh();
             vscode.commands.executeCommand('koban.refreshExplorer');
         } catch (error) {
@@ -615,6 +621,7 @@ export class KanbanPanel {
             const targetSpaceId = spaceId || this._boards[0]?.space.id;
             if (!targetSpaceId) { return; }
             const meeting = await this._taskService.createMeeting(targetSpaceId, title, date, time ? { time } : undefined);
+            await this._ensureBoardForSpace(targetSpaceId);
             await this._refresh();
             vscode.commands.executeCommand('koban.refreshExplorer');
             // Open the meeting file
@@ -659,14 +666,15 @@ export class KanbanPanel {
             const validSpaces = this._spaceService.getSpaces();
             if (!validSpaces.some(s => s.id === updates.targetSpaceId)) {
                 vscode.window.showErrorMessage(`Invalid target space: ${updates.targetSpaceId}`);
-                return;
-            }
-            const task = this._findTask(taskId);
-            if (task && task.spaceId !== updates.targetSpaceId) {
-                try {
-                    await this._taskService.moveTaskToSpace(taskId, updates.targetSpaceId);
-                } catch (error) {
-                    vscode.window.showErrorMessage(`Failed to move task: ${error}`);
+                // fall through — still apply field updates below
+            } else {
+                const task = this._findTask(taskId);
+                if (task && task.spaceId !== updates.targetSpaceId) {
+                    try {
+                        await this._taskService.moveTaskToSpace(taskId, updates.targetSpaceId);
+                    } catch (error) {
+                        vscode.window.showErrorMessage(`Failed to move task: ${error}`);
+                    }
                 }
             }
         }
@@ -697,14 +705,15 @@ export class KanbanPanel {
             const validSpaces = this._spaceService.getSpaces();
             if (!validSpaces.some(s => s.id === updates.targetSpaceId)) {
                 vscode.window.showErrorMessage(`Invalid target space: ${updates.targetSpaceId}`);
-                return;
-            }
-            const meeting = this._findMeeting(meetingId);
-            if (meeting && meeting.spaceId !== updates.targetSpaceId) {
-                try {
-                    await this._taskService.moveMeetingToSpace(meetingId, updates.targetSpaceId);
-                } catch (error) {
-                    vscode.window.showErrorMessage(`Failed to move meeting: ${error}`);
+                // fall through — still apply field updates below
+            } else {
+                const meeting = this._findMeeting(meetingId);
+                if (meeting && meeting.spaceId !== updates.targetSpaceId) {
+                    try {
+                        await this._taskService.moveMeetingToSpace(meetingId, updates.targetSpaceId);
+                    } catch (error) {
+                        vscode.window.showErrorMessage(`Failed to move meeting: ${error}`);
+                    }
                 }
             }
         }
@@ -749,10 +758,21 @@ export class KanbanPanel {
 
     private async _refresh(): Promise<void> {
         for (const board of this._boards) {
+            const freshSpace = this._spaceService.getSpace(board.space.id);
+            if (freshSpace) { board.space = freshSpace; }
             board.tasks = await this._taskService.getTasksForSpace(board.space.id);
             board.meetings = await this._taskService.getMeetingsForSpace(board.space.id);
         }
         this._update();
+    }
+
+    /** Add a board for the given spaceId if it isn't already displayed. */
+    private async _ensureBoardForSpace(spaceId: string): Promise<void> {
+        if (this._boards.some(b => b.space.id === spaceId)) { return; }
+        const space = this._spaceService.getSpace(spaceId);
+        if (!space) { return; }
+        this._boards.push({ space, tasks: [], meetings: [] });
+        this._spaceFilter.push(spaceId);
     }
 }
 

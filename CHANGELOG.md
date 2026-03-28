@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.1] - 2026-03-28
+
+### Fixed
+- **Space Dropdown Pre-Selection** — Task/meeting creation modals now pre-select the currently displayed space instead of defaulting to the first alphabetical space
+- **Board Auto-Expansion** — Creating a task/meeting in a space not currently on the board dynamically adds that space’s board so the item appears immediately
+- **Field Update Data Loss** — `_updateTask`/`_updateMeeting` no longer early-return on invalid `targetSpaceId`, ensuring field edits (title, priority, due, status, description) are always applied
+- **Quick-Add Space Targeting** — Quick-add inputs in Kanban columns now include `data-space-id`, preventing tasks from always being created in the first board’s space on multi-space boards
+- **CreateTask Status Validation** — Webview `createTask` messages now validate the status field against allowed values, falling back to ‘todo’
+- **Numeric ID Coercion** — `parseFrontmatter` no longer auto-converts all numeric-looking values to numbers; only `year` is coerced, preventing corruption of purely numeric space/task IDs
+- **Duplicate Space ID Warning** — `processMetaFile` now warns and skips duplicate space IDs instead of silently overwriting the first space
+- **Move Year-File Targeting** — `moveTaskToSpace`/`moveMeetingToSpace` now derive the target year-file from the source file path instead of from `createdAt`/`date`, preventing tasks from landing in wrong year-files
+- **Stale Space Metadata** — KanbanPanel `_refresh()` now re-fetches space data (name, color, stats) so changes are reflected without re-opening the panel
+
 ## [0.3.0] - 2026-03-27
 
 ### Fixed

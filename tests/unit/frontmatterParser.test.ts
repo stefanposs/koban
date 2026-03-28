@@ -31,12 +31,15 @@ archived: false
 
   it('parses numeric values', () => {
     const content = `---
+year: 2026
 count: 42
 weight: 3.14
 ---`
     const result = parseFrontmatter(content)
-    expect(result.count).toBe(42)
-    expect(result.weight).toBe(3.14)
+    expect(result.year).toBe(2026)
+    // Non-year numeric values are kept as strings to avoid corrupting IDs
+    expect(result.count).toBe('42')
+    expect(result.weight).toBe('3.14')
   })
 
   it('parses arrays', () => {

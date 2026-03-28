@@ -392,9 +392,9 @@ export class TaskService implements ITaskService {
             throw new Error(`Task ${taskId} section not found in file`);
         }
 
-        // Determine target year-file
-        const createdYear = task.createdAt.getFullYear();
-        const year = isNaN(createdYear) ? new Date().getFullYear() : createdYear;
+        // Determine target year-file from source file path
+        const sourceYearMatch = path.basename(task.filePath).match(/(\d{4})\.md$/);
+        const year = sourceYearMatch ? Number(sourceYearMatch[1]) : new Date().getFullYear();
         const targetFileName = getTasksFileName(year);
         const targetTasksDir = path.join(targetRoot, TASKS_DIR);
         const targetFilePath = path.join(targetTasksDir, targetFileName);
@@ -449,9 +449,9 @@ export class TaskService implements ITaskService {
             throw new Error(`Meeting ${meetingId} section not found in file`);
         }
 
-        // Determine target year-file from meeting date
-        const dateYear = meeting.date.getFullYear();
-        const year = isNaN(dateYear) ? new Date().getFullYear() : dateYear;
+        // Determine target year-file from source file path
+        const sourceYearMatch = path.basename(meeting.filePath).match(/(\d{4})\.md$/);
+        const year = sourceYearMatch ? Number(sourceYearMatch[1]) : new Date().getFullYear();
         const targetFileName = getMeetingsFileName(year);
         const targetMeetingsDir = path.join(targetRoot, MEETINGS_DIR);
         const targetFilePath = path.join(targetMeetingsDir, targetFileName);
