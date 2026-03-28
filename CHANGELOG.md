@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.2] - 2026-03-28
+
+### Fixed
+- **ES2020 Compat** — Replaced `Error(msg, { cause })` with message interpolation (requires ES2022, tsconfig targets ES2020)
+
 ## [0.3.1] - 2026-03-28
 
 ### Fixed
