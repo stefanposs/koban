@@ -362,7 +362,7 @@ async function createNewMeeting(node?: any): Promise<void> {
     }
 }
 
-async function openKanbanBoard(node?: any): Promise<void> {
+async function openKanbanBoard(_node?: any): Promise<void> {
     await discoverSpaces();
     const spaces = spaceService.getSpaces();
     if (spaces.length === 0) {
@@ -370,16 +370,10 @@ async function openKanbanBoard(node?: any): Promise<void> {
         return;
     }
 
-    // If called with a specific space node, show only that space
-    // Otherwise show all active spaces
-    let targetSpaces: typeof spaces;
-    if (node && node.space) {
-        targetSpaces = [node.space];
-    } else {
-        targetSpaces = spaces.filter(s => s.status === 'active');
-        if (targetSpaces.length === 0) {
-            targetSpaces = spaces;
-        }
+    // Always show all active spaces (fall back to all if none active)
+    let targetSpaces = spaces.filter(s => s.status === 'active');
+    if (targetSpaces.length === 0) {
+        targetSpaces = spaces;
     }
 
     const boards = await Promise.all(
