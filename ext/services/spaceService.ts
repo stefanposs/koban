@@ -190,7 +190,7 @@ export class SpaceService implements ISpaceService {
             space.status = status;
             space.updatedAt = new Date();
         } catch (error) {
-            throw new Error(`Failed to update space status`, { cause: error });
+            throw new Error(`Failed to update space status: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 }

@@ -226,7 +226,7 @@ export class TaskService implements ITaskService {
             task.status = newStatus;
             task.updatedAt = new Date();
         } catch (error) {
-            throw new Error(`Failed to update task status`, { cause: error });
+            throw new Error(`Failed to update task status: ${error instanceof Error ? error.message : String(error)}`);
         }
         });
     }
@@ -269,7 +269,7 @@ export class TaskService implements ITaskService {
             await this.fileService.writeFile(task.filePath, content);
             task.updatedAt = new Date();
         } catch (error) {
-            throw new Error(`Failed to update task`, { cause: error });
+            throw new Error(`Failed to update task: ${error instanceof Error ? error.message : String(error)}`);
         }
         });
     }
@@ -304,7 +304,7 @@ export class TaskService implements ITaskService {
             await this.fileService.writeFile(meeting.filePath, content);
             meeting.updatedAt = new Date();
         } catch (error) {
-            throw new Error(`Failed to update meeting`, { cause: error });
+            throw new Error(`Failed to update meeting: ${error instanceof Error ? error.message : String(error)}`);
         }
         });
     }
