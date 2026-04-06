@@ -108,6 +108,13 @@ export class KanbanPanel {
                         }
                         break;
                     }
+                    case 'reorderTask': {
+                        const validStatuses3: TaskStatus[] = ['todo', 'in-progress', 'review', 'done', 'blocked', 'archived'];
+                        if (validStatuses3.includes(message.targetStatus as TaskStatus)) {
+                            await this._reorderTask(message.taskId, message.targetStatus, message.afterTaskId || null);
+                        }
+                        break;
+                    }
                     case 'openTask':
                         await this._openTask(message.taskId);
                         break;
@@ -517,7 +524,7 @@ export class KanbanPanel {
                     <span><kbd>J</kbd><kbd>K</kbd> Navigate</span>
                     <span><kbd>Space</kbd> Open</span>
                     <span><kbd>E</kbd> Edit</span>
-                    <span><kbd>1</kbd>-<kbd>4</kbd> Move to column</span>
+                    <span><kbd>1</kbd>-<kbd>5</kbd> Move to column</span>
                     <span><kbd>C</kbd> New task</span>
                     <span><kbd>/</kbd> Search</span>
                 </div>
@@ -586,6 +593,16 @@ export class KanbanPanel {
             vscode.commands.executeCommand('koban.refreshExplorer');
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to move task: ${error}`);
+        }
+    }
+
+    private async _reorderTask(taskId: string, targetStatus: TaskStatus, afterTaskId: string | null): Promise<void> {
+        try {
+            await this._taskService.reorderTask(taskId, targetStatus, afterTaskId);
+            await this._refresh();
+            vscode.commands.executeCommand('koban.refreshExplorer');
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to reorder task: ${error}`);
         }
     }
 

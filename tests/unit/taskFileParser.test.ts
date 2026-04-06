@@ -15,6 +15,7 @@ import {
     getMeetingsFileName,
     getArchivedTasksFileName,
     emptyTasksFile,
+    moveSectionToPosition,
 } from '../../ext/utils/taskFileParser'
 
 describe('taskFileParser', () => {
@@ -285,6 +286,59 @@ Use new framework.
 
         it('returns -1 for unknown id', () => {
             expect(findSectionLine(TASKS_CONTENT, 'ghost')).toBe(-1)
+        })
+    })
+
+    describe('moveSectionToPosition', () => {
+        const threeTaskFile = `---
+type: tasks
+spaceId: test
+year: 2026
+---
+
+## Task A
+id: task-a
+status: todo
+priority: high
+
+## Task B
+id: task-b
+status: todo
+priority: medium
+
+## Task C
+id: task-c
+status: todo
+priority: low
+`
+
+        it('moves a task to the top when afterItemId is null', () => {
+            const result = moveSectionToPosition(threeTaskFile, 'task-c', null)
+            const sections = parseTasksFile(result)
+            expect(sections.tasks.map(t => t.id)).toEqual(['task-c', 'task-a', 'task-b'])
+        })
+
+        it('moves a task after another task', () => {
+            const result = moveSectionToPosition(threeTaskFile, 'task-c', 'task-a')
+            const sections = parseTasksFile(result)
+            expect(sections.tasks.map(t => t.id)).toEqual(['task-a', 'task-c', 'task-b'])
+        })
+
+        it('updates status when moving', () => {
+            const result = moveSectionToPosition(threeTaskFile, 'task-a', null, 'in-progress')
+            const sections = parseTasksFile(result)
+            expect(sections.tasks[0].id).toBe('task-a')
+            expect(sections.tasks[0].status).toBe('in-progress')
+        })
+
+        it('returns original content when itemId not found', () => {
+            const result = moveSectionToPosition(threeTaskFile, 'nonexistent', null)
+            expect(result).toBe(threeTaskFile)
+        })
+
+        it('returns original content when afterItemId not found', () => {
+            const result = moveSectionToPosition(threeTaskFile, 'task-a', 'nonexistent')
+            expect(result).toBe(threeTaskFile)
         })
     })
 })

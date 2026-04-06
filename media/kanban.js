@@ -63,7 +63,8 @@
                 case '1': // Move to column 1 (Todo)
                 case '2': // Move to column 2 (In Progress)
                 case '3': // Move to column 3 (Review)
-                case '4': // Move to column 4 (Done)
+                case '4': // Move to column 4 (Blocked)
+                case '5': // Move to column 5 (Done)
                     e.preventDefault();
                     moveSelectedTaskToColumn(parseInt(e.key) - 1);
                     break;
@@ -462,9 +463,16 @@
     function handleDragEnd(e) {
         e.target.classList.remove('dragging');
         draggedTask = null;
-        
+        clearDropIndicators();
+
         document.querySelectorAll('.column-content').forEach(col => {
             col.classList.remove('drag-over');
+        });
+    }
+
+    function clearDropIndicators() {
+        document.querySelectorAll('.drop-before, .drop-after').forEach(el => {
+            el.classList.remove('drop-before', 'drop-after');
         });
     }
 
@@ -472,24 +480,59 @@
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         e.currentTarget.classList.add('drag-over');
+
+        // Show drop indicator
+        clearDropIndicators();
+        const cards = Array.from(e.currentTarget.querySelectorAll('.task-card:not(.dragging)'));
+
+        let insertBefore = null;
+        for (const card of cards) {
+            const rect = card.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            if (e.clientY < midY) {
+                insertBefore = card;
+                break;
+            }
+        }
+
+        if (insertBefore) {
+            insertBefore.classList.add('drop-before');
+        } else if (cards.length > 0) {
+            cards[cards.length - 1].classList.add('drop-after');
+        }
     }
 
     function handleDragLeave(e) {
         if (e.currentTarget.classList.contains('column-content')) {
             e.currentTarget.classList.remove('drag-over');
+            clearDropIndicators();
         }
     }
 
     function handleDrop(e) {
         e.preventDefault();
         e.currentTarget.classList.remove('drag-over');
-        
+        clearDropIndicators();
+
         const taskId = e.dataTransfer.getData('text/plain');
         const newStatus = e.currentTarget.getAttribute('data-status');
-        
-        if (taskId && newStatus) {
-            vscode.postMessage({ type: 'moveTask', taskId, newStatus });
+
+        if (!taskId || !newStatus) { return; }
+
+        // Find the card closest to the drop position
+        const cards = Array.from(e.currentTarget.querySelectorAll('.task-card:not(.dragging)'));
+        let afterTaskId = null;
+
+        for (let i = cards.length - 1; i >= 0; i--) {
+            const rect = cards[i].getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            if (e.clientY > midY) {
+                afterTaskId = cards[i].getAttribute('data-task-id');
+                break;
+            }
         }
+
+        vscode.postMessage({ type: 'reorderTask', taskId, targetStatus: newStatus, afterTaskId });
     }
 
     // =====================================================

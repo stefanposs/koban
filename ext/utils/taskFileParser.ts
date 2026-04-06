@@ -619,3 +619,88 @@ export function findSectionLine(content: string, itemId: string): number {
     }
     return -1;
 }
+
+/**
+ * Move a section identified by `itemId` to a new position in the file.
+ * If `afterItemId` is null/undefined, the section is placed at the top (first H2).
+ * Otherwise, the section is placed after the section with `afterItemId`.
+ * Optionally updates status metadata before moving.
+ */
+export function moveSectionToPosition(
+    content: string,
+    itemId: string,
+    afterItemId: string | null,
+    statusUpdate?: string
+): string {
+    let workingContent = content;
+    if (statusUpdate) {
+        workingContent = updateSectionMetadata(workingContent, itemId, { status: statusUpdate });
+    }
+
+    const { updatedContent, removedSection } = removeSection(workingContent, itemId);
+    if (!removedSection) { return content; }
+
+    if (afterItemId === null || afterItemId === undefined) {
+        // Insert at top — after frontmatter
+        const lines = updatedContent.split('\n');
+        let insertIdx = 0;
+        if (lines[0]?.trim() === '---') {
+            insertIdx = 1;
+            while (insertIdx < lines.length && lines[insertIdx]?.trim() !== '---') { insertIdx++; }
+            insertIdx++; // skip closing ---
+        }
+
+        const before = lines.slice(0, insertIdx);
+        const after = lines.slice(insertIdx);
+        // Strip leading blank lines from after
+        while (after.length > 0 && after[0]?.trim() === '') { after.shift(); }
+
+        let result = before.join('\n') + '\n\n' + removedSection;
+        if (after.length > 0) {
+            result += '\n\n' + after.join('\n');
+        } else {
+            result += '\n';
+        }
+        return result;
+    }
+
+    // Insert after the specified section
+    const lines = updatedContent.split('\n');
+    let targetSectionStart = -1;
+    let targetSectionEnd = -1;
+    let foundTargetId = false;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.startsWith('## ') && !line.startsWith('### ')) {
+            if (foundTargetId) {
+                targetSectionEnd = i;
+                break;
+            }
+            targetSectionStart = i;
+        }
+        if (targetSectionStart >= 0 && line.trim() === `id: ${afterItemId}`) {
+            foundTargetId = true;
+        }
+    }
+
+    if (!foundTargetId) { return content; }
+    if (targetSectionEnd < 0) { targetSectionEnd = lines.length; }
+
+    // Trim trailing blank lines before insertion point
+    let insertAt = targetSectionEnd;
+    while (insertAt > 0 && lines[insertAt - 1]?.trim() === '') { insertAt--; }
+
+    const before = lines.slice(0, insertAt);
+    const after = lines.slice(insertAt);
+
+    while (after.length > 0 && after[0]?.trim() === '') { after.shift(); }
+
+    let result = before.join('\n') + '\n\n' + removedSection;
+    if (after.length > 0) {
+        result += '\n\n' + after.join('\n');
+    } else {
+        result += '\n';
+    }
+    return result;
+}

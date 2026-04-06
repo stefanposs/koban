@@ -28,6 +28,7 @@ import {
     emptyArchivedTasksFile,
     emptyMeetingsFile,
     findSectionLine,
+    moveSectionToPosition,
     TaskSection,
     MeetingSection,
 } from '../utils/taskFileParser';
@@ -228,6 +229,33 @@ export class TaskService implements ITaskService {
         } catch (error) {
             throw new Error(`Failed to update task status: ${error instanceof Error ? error.message : String(error)}`);
         }
+        });
+    }
+
+    async reorderTask(taskId: string, targetStatus: TaskStatus, afterTaskId: string | null): Promise<void> {
+        return this.withWriteLock(async () => {
+            const task = this.tasks.get(taskId);
+            if (!task) {
+                throw new Error(`Task ${taskId} not found`);
+            }
+
+            const statusChanged = task.status !== targetStatus;
+            const content = await this.fileService.readFile(task.filePath);
+            const updatedContent = moveSectionToPosition(
+                content,
+                taskId,
+                afterTaskId,
+                statusChanged ? targetStatus : undefined
+            );
+
+            if (updatedContent === content) { return; }
+
+            await this.fileService.writeFile(task.filePath, updatedContent);
+
+            if (statusChanged) {
+                task.status = targetStatus;
+            }
+            task.updatedAt = new Date();
         });
     }
 
