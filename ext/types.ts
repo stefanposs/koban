@@ -142,5 +142,6 @@ export interface ITaskService {
     archiveTask(taskId: string): Promise<void>;
     moveTaskToSpace(taskId: string, targetSpaceId: string): Promise<Task>;
     moveMeetingToSpace(meetingId: string, targetSpaceId: string): Promise<Meeting>;
+    reorderTask(taskId: string, targetStatus: TaskStatus, afterTaskId: string | null): Promise<void>;
     createMeeting(spaceId: string, title: string, date: string, options?: { time?: string; duration?: number; attendees?: string[]; tags?: string[]; meetingType?: MeetingType }): Promise<Meeting>;
 }

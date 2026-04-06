@@ -893,3 +893,18 @@ body {
 .search-input::placeholder {
     color: var(--vscode-input-placeholderForeground);
 }
+
+/* Drop position indicators */
+.task-card.drop-before {
+    border-top: 2px solid var(--vscode-focusBorder, #007acc);
+    margin-top: -1px;
+}
+
+.task-card.drop-after {
+    border-bottom: 2px solid var(--vscode-focusBorder, #007acc);
+    margin-bottom: -1px;
+}
+
+.task-card.dragging {
+    opacity: 0.4;
+}

@@ -381,4 +381,33 @@ date: 2025-01-15
                 .rejects.toThrow('Meeting ghost not found')
         })
     })
+
+    describe('reorderTask', () => {
+        it('reorders tasks within the same column', async () => {
+            const t1 = await taskService.createTask('project-a', 'First')
+            const t2 = await taskService.createTask('project-a', 'Second')
+            const t3 = await taskService.createTask('project-a', 'Third')
+
+            // Move Third to top
+            await taskService.reorderTask(t3.id, 'todo', null)
+
+            const tasks = await taskService.getTasksForSpace('project-a')
+            const todoTasks = tasks.filter(t => t.status === 'todo')
+            expect(todoTasks.map(t => t.title)).toEqual(['Third', 'First', 'Second'])
+        })
+
+        it('changes status when reordering to different column', async () => {
+            const t1 = await taskService.createTask('project-a', 'Task A')
+
+            await taskService.reorderTask(t1.id, 'in-progress', null)
+
+            const tasks = await taskService.getTasksForSpace('project-a')
+            expect(tasks[0].status).toBe('in-progress')
+        })
+
+        it('throws on unknown task', async () => {
+            await expect(taskService.reorderTask('nonexistent', 'todo', null))
+                .rejects.toThrow('not found')
+        })
+    })
 })

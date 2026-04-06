@@ -56,6 +56,12 @@ export class ConfigService implements IConfigService {
                 color: '#f59e0b'
             },
             {
+                id: 'blocked',
+                name: 'Blocked',
+                status: 'blocked',
+                color: '#ef4444'
+            },
+            {
                 id: 'done',
                 name: 'Done',
                 status: 'done',
